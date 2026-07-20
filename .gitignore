@@ -1,0 +1,11 @@
+# Build output (module BMIs, objects, the engine binary)
+build/
+
+# GCC module cache (dropped in the CWD by g++ portability builds)
+gcm.cache/
+
+# Local design notes and scratch probes (not part of the engine)
+reports/
+
+# Editor / IDE settings
+.vscode/
