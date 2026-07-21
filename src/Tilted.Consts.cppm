@@ -1,8 +1,8 @@
-#pragma once
+export module Tilted.Consts;
 
-import Tilted.Std;
+import std;
 
-namespace Tilted {
+export namespace Tilted {
 
 using Square = std::size_t;
 enum Color { Black, White };
@@ -38,9 +38,5 @@ enum class Variant {
     Clobber,
     Cloister, // etc
 };
-
-template <std::size_t M, std::size_t N>
-concept ValidBoard = (M == 4 and N == 4) or (M == 8 and N == 8) or
-                     (M == 8 and N == 10) or (M == 14 and N == 14);
 
 } // namespace Tilted

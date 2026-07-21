@@ -1,7 +1,14 @@
-# Build output (module BMIs, objects, the engine binary)
+# Build output -- CMake + Ninja (module BMIs, objects, the static lib / engine
+# binary, compile_commands.json, Ninja state)
 build/
 
-# GCC module cache (dropped in the CWD by g++ portability builds)
+# Per-developer CMake preset overrides (CMakePresets.json itself is committed)
+CMakeUserPresets.json
+
+# clangd's on-disk index / cache
+.cache/
+
+# GCC module cache (only relevant to a future g++ build)
 gcm.cache/
 
 # Local design notes and scratch probes (not part of the engine)

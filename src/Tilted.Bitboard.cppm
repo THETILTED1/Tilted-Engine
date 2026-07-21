@@ -1,6 +1,7 @@
-#pragma once
+export module Tilted.Bitboard;
 
-#include "Consts.h"
+import std;
+export import Tilted.Consts;
 
 namespace Tilted {
 
@@ -11,8 +12,8 @@ using Word = std::conditional_t<
 
 // Top-left justified: square (rank r, file f) is internal bit r*innerCols + f,
 // so bit 0 is a8/a14. The public interface speaks external M*N squares.
-template <std::size_t M, std::size_t N>
-    requires ValidBoard<M, N>
+export template <std::size_t M, std::size_t N>
+    requires(N <= 64)
 class Bitboard {
   public:
     Bitboard() = default;
@@ -68,6 +69,18 @@ class Bitboard {
     std::array<Word<M * N>, wordCount> data{};
 };
 
+// Human-readable dump; its definition lives with the other members in
+// Bitboard.inl, but the declaration must be exported here to be visible to
+// importers.
+export template <std::size_t M, std::size_t N>
+    requires(N <= 64)
+std::ostream &operator<<(std::ostream &os, const Bitboard<M, N> &board);
+
 } // namespace Tilted
 
+// Member and free-function definitions (constexpr masks, ops, streaming). They
+// are #included into the module purview so they land in the BMI -- constexpr
+// evaluation in importers needs the definitions reachable, which explicit
+// instantiation could not provide. Bitboard.inl is not a standalone TU: it sees
+// Bitboard, Word, Square, and std:: from this enclosing interface unit.
 #include "Bitboard.inl"

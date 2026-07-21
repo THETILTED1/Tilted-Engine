@@ -1,3 +1,4 @@
 Changelog
 
 07-20-2026 ... 0.0.0.1 ... Generalized Bitboard
+07-20-2026 ... 0.0.0.2 ... Modules-first build (import std, CMake/Ninja, clangd)
