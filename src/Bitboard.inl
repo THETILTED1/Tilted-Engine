@@ -5,7 +5,7 @@ namespace Tilted {
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
 constexpr Square Bitboard<M, N>::flipRank(Square s) {
-    return ((M - 1) - s / N) * N + s % N;
+    return ((M - 1) - s / innerCols) * innerCols + s % innerCols;
 }
 
 template <std::size_t M, std::size_t N>
@@ -23,9 +23,8 @@ constexpr std::size_t Bitboard<M, N>::cols() {
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
 constexpr Bitboard<M, N> Bitboard<M, N>::squareToBitboard(Square s) {
-    const std::size_t b = (s / N) * innerCols + s % N;
     Bitboard result;
-    result.data[b / bits] |= Word<M * N>(Word<M * N>(1) << (b % bits));
+    result.data[s / bits] |= Word<M * N>(Word<M * N>(1) << (s % bits));
     return result;
 }
 
@@ -33,33 +32,40 @@ constexpr Bitboard<M, N> Bitboard<M, N>::squareToBitboard(Square s) {
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
 inline constexpr std::array<Bitboard<M, N>, N> fileMasks = [] {
+    constexpr std::size_t ic = std::bit_ceil(N);
     std::array<Bitboard<M, N>, N> masks{};
     for (std::size_t f = 0; f < N; ++f)
         for (std::size_t r = 0; r < M; ++r)
-            masks[f] |= Bitboard<M, N>::squareToBitboard(r * N + f);
+            masks[f] |= Bitboard<M, N>::squareToBitboard(r * ic + f);
     return masks;
 }();
 
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
 inline constexpr std::array<Bitboard<M, N>, M> rankMasks = [] {
+    constexpr std::size_t ic = std::bit_ceil(N);
     std::array<Bitboard<M, N>, M> masks{};
     for (std::size_t r = 0; r < M; ++r)
         for (std::size_t f = 0; f < N; ++f)
-            masks[r] |= Bitboard<M, N>::squareToBitboard(r * N + f);
+            masks[r] |= Bitboard<M, N>::squareToBitboard(r * ic + f);
     return masks;
 }();
 
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
 inline constexpr Bitboard<M, N> boardMask = [] {
+    constexpr std::size_t ic = std::bit_ceil(N);
     Bitboard<M, N> mask{};
-    for (Square s = 0; s < M * N; ++s)
-        mask |= Bitboard<M, N>::squareToBitboard(s);
+    for (std::size_t r = 0; r < M; ++r)
+        for (std::size_t f = 0; f < N; ++f)
+            mask |= Bitboard<M, N>::squareToBitboard(r * ic + f);
     return mask;
 }();
 
-// External square <-> internal bit translations (the padding bijection).
+// Dense external square <-> internal bit translations (the padding bijection),
+// used only at the I/O boundary (algebraic, FEN/UCI, compact per-square
+// tables). The bit layout is canonical everywhere else; arithmetic never uses
+// these.
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
 inline constexpr std::array<Square, M * N> squareToBit = [] {
@@ -98,15 +104,13 @@ constexpr bool Bitboard<M, N>::empty() const {
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
 constexpr bool Bitboard<M, N>::test(Square s) const {
-    const std::size_t b = (s / N) * innerCols + s % N;
-    return (data[b / bits] >> (b % bits)) & 1;
+    return (data[s / bits] >> (s % bits)) & 1;
 }
 
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
 constexpr void Bitboard<M, N>::toggle(Square s) {
-    const std::size_t b = (s / N) * innerCols + s % N;
-    data[b / bits] ^= Word<M * N>(Word<M * N>(1) << (b % bits));
+    data[s / bits] ^= Word<M * N>(Word<M * N>(1) << (s % bits));
 }
 
 template <std::size_t M, std::size_t N>
@@ -122,23 +126,18 @@ template <std::size_t M, std::size_t N>
     requires(N <= 64)
 constexpr Square Bitboard<M, N>::leastSquare() const {
     for (std::size_t i = 0; i < wordCount; ++i)
-        if (data[i]) {
-            const std::size_t b = i * bits + std::countr_zero(data[i]);
-            return (b / innerCols) * N + b % innerCols;
-        }
-    return M * N;
+        if (data[i])
+            return i * bits + std::countr_zero(data[i]);
+    return innerCols * M;
 }
 
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
 constexpr Square Bitboard<M, N>::mostSquare() const {
     for (std::size_t i = wordCount; i-- > 0;)
-        if (data[i]) {
-            const std::size_t b =
-                i * bits + (bits - 1 - std::countl_zero(data[i]));
-            return (b / innerCols) * N + b % innerCols;
-        }
-    return M * N;
+        if (data[i])
+            return i * bits + (bits - 1 - std::countl_zero(data[i]));
+    return innerCols * M;
 }
 
 template <std::size_t M, std::size_t N>
@@ -148,9 +147,9 @@ constexpr Square Bitboard<M, N>::popLeastSquare() {
         if (data[i]) {
             const std::size_t b = i * bits + std::countr_zero(data[i]);
             data[i] &= Word<M * N>(data[i] - 1);
-            return (b / innerCols) * N + b % innerCols;
+            return b;
         }
-    return M * N;
+    return innerCols * M;
 }
 
 template <std::size_t M, std::size_t N>
@@ -214,10 +213,15 @@ Bitboard<M, N>::operator^(const Bitboard &other) const {
     return result;
 }
 
+// Raw bitwise shift over the internal bit layout: the whole word array is one
+// wide integer, carrying across word lines. Bits shifted past the top word are
+// dropped, but nothing is board-masked -- a shift can wrap a bit into a padding
+// column or an off-board square. Callers that need a clean board (and the
+// board-edge semantics themselves) mask the result: see north/south/east/west.
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
-constexpr Bitboard<M, N> Bitboard<M, N>::shiftedLeft(std::size_t n) const {
-    const std::size_t ws = n / bits, bs = n % bits;
+constexpr Bitboard<M, N> &Bitboard<M, N>::operator<<=(Square shift) {
+    const std::size_t ws = shift / bits, bs = shift % bits;
     Bitboard result;
     for (std::size_t i = wordCount; i-- > 0;) {
         Word<M * N> v{};
@@ -229,13 +233,14 @@ constexpr Bitboard<M, N> Bitboard<M, N>::shiftedLeft(std::size_t n) const {
         }
         result.data[i] = v;
     }
-    return result;
+    *this = result;
+    return *this;
 }
 
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
-constexpr Bitboard<M, N> Bitboard<M, N>::shiftedRight(std::size_t n) const {
-    const std::size_t ws = n / bits, bs = n % bits;
+constexpr Bitboard<M, N> &Bitboard<M, N>::operator>>=(Square shift) {
+    const std::size_t ws = shift / bits, bs = shift % bits;
     Bitboard result;
     for (std::size_t i = 0; i < wordCount; ++i) {
         Word<M * N> v{};
@@ -247,60 +252,7 @@ constexpr Bitboard<M, N> Bitboard<M, N>::shiftedRight(std::size_t n) const {
         }
         result.data[i] = v;
     }
-    return result;
-}
-
-// Move each set bit from external square s to s +/- shift; bits off the board
-// drop. With no padding (innerCols == N) this is a plain word shift.
-template <std::size_t M, std::size_t N>
-    requires(N <= 64)
-constexpr Bitboard<M, N> &Bitboard<M, N>::operator<<=(Square shift) {
-    if constexpr (innerCols == N)
-        // drop bits shifted past M*N (folds away when boardMask is all-ones)
-        *this = shiftedLeft(shift) & boardMask<M, N>;
-    else {
-        Bitboard result;
-        for (std::size_t i = 0; i < wordCount; ++i) {
-            Word<M * N> w = data[i];
-            while (w) {
-                const std::size_t b = i * bits + std::countr_zero(w);
-                w &= Word<M * N>(w - 1);
-                const Square to = bitToSquare<M, N>[b] + shift;
-                if (to < M * N) {
-                    const std::size_t nb = squareToBit<M, N>[to];
-                    result.data[nb / bits] |=
-                        Word<M * N>(Word<M * N>(1) << (nb % bits));
-                }
-            }
-        }
-        *this = result;
-    }
-    return *this;
-}
-
-template <std::size_t M, std::size_t N>
-    requires(N <= 64)
-constexpr Bitboard<M, N> &Bitboard<M, N>::operator>>=(Square shift) {
-    if constexpr (innerCols == N)
-        *this = shiftedRight(shift);
-    else {
-        Bitboard result;
-        for (std::size_t i = 0; i < wordCount; ++i) {
-            Word<M * N> w = data[i];
-            while (w) {
-                const std::size_t b = i * bits + std::countr_zero(w);
-                w &= Word<M * N>(w - 1);
-                const Square from = bitToSquare<M, N>[b];
-                if (from >= shift) {
-                    const Square to = from - shift;
-                    const std::size_t nb = squareToBit<M, N>[to];
-                    result.data[nb / bits] |=
-                        Word<M * N>(Word<M * N>(1) << (nb % bits));
-                }
-            }
-        }
-        *this = result;
-    }
+    *this = result;
     return *this;
 }
 
@@ -323,25 +275,25 @@ constexpr Bitboard<M, N> Bitboard<M, N>::operator>>(Square shift) const {
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
 constexpr Bitboard<M, N> Bitboard<M, N>::north() const {
-    return shiftedRight(innerCols);
+    return *this >> innerCols;
 }
 
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
 constexpr Bitboard<M, N> Bitboard<M, N>::south() const {
-    return shiftedLeft(innerCols) & boardMask<M, N>;
+    return (*this << innerCols) & boardMask<M, N>;
 }
 
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
 constexpr Bitboard<M, N> Bitboard<M, N>::east() const {
-    return (*this & ~fileMasks<M, N>[N - 1]).shiftedLeft(1);
+    return (*this & ~fileMasks<M, N>[N - 1]) << 1;
 }
 
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
 constexpr Bitboard<M, N> Bitboard<M, N>::west() const {
-    return (*this & ~fileMasks<M, N>[0]).shiftedRight(1);
+    return (*this & ~fileMasks<M, N>[0]) >> 1;
 }
 
 template <std::size_t M, std::size_t N>
@@ -392,7 +344,7 @@ constexpr Bitboard<M, N> Bitboard<M, N>::rankMirror() const {
         }
     }
     if constexpr (trailing != 0)
-        return reversed.shiftedRight(trailing);
+        return reversed >> trailing;
     else
         return reversed;
 }
@@ -400,9 +352,10 @@ constexpr Bitboard<M, N> Bitboard<M, N>::rankMirror() const {
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
 std::ostream &operator<<(std::ostream &os, const Bitboard<M, N> &board) {
+    constexpr std::size_t ic = std::bit_ceil(N);
     for (std::size_t r = 0; r < M; ++r) {
         for (std::size_t f = 0; f < N; ++f)
-            os << (board.test(r * N + f) ? '1' : '.');
+            os << (board.test(r * ic + f) ? '1' : '.');
         os << '\n';
     }
     return os;

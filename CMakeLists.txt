@@ -16,9 +16,13 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)  # for clangd (see .clangd)
 
 # Module interface units; CMake derives the build order itself. Bitboard.inl is a
 # plain #include of Tilted.Bitboard.cppm, so it is intentionally not listed.
+# PUBLIC (not PRIVATE): the module file set is the engine's API surface, so
+# consumers that link `tilted` -- the eventual main executable and the test
+# suite below -- can `import` these. A PRIVATE file set is unimportable outside
+# its owning target.
 add_library(tilted STATIC)
 target_sources(tilted
-  PRIVATE
+  PUBLIC
     FILE_SET CXX_MODULES FILES
       src/Tilted.Consts.cppm
       src/Tilted.Util.cppm
@@ -29,3 +33,11 @@ target_sources(tilted
 
 # Build the stdlib as a module so `import std;` resolves (libc++'s std.cppm on clang).
 set_target_properties(tilted PROPERTIES CXX_MODULE_STD ON)
+
+# Test suite (GoogleTest). On by default; `make test` builds and runs it via
+# ctest. Turn off with -DTILTED_TESTS=OFF for a lib-only build.
+option(TILTED_TESTS "Build the GoogleTest suite" ON)
+if(TILTED_TESTS)
+  enable_testing()
+  add_subdirectory(tests)
+endif()
