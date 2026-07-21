@@ -1,6 +1,6 @@
-# Build output -- CMake + Ninja (module BMIs, objects, the static lib / engine
-# binary, compile_commands.json, Ninja state)
+# CMake/Ninja build trees (build/ = clang, build-gcc/ = gcc)
 build/
+build-gcc/
 
 # Per-developer CMake preset overrides (CMakePresets.json itself is committed)
 CMakeUserPresets.json

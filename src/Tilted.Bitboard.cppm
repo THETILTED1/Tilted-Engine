@@ -69,18 +69,13 @@ class Bitboard {
     std::array<Word<M * N>, wordCount> data{};
 };
 
-// Human-readable dump; its definition lives with the other members in
-// Bitboard.inl, but the declaration must be exported here to be visible to
-// importers.
+// Human-readable dump; definition in Bitboard.inl, declaration exported here.
 export template <std::size_t M, std::size_t N>
     requires(N <= 64)
 std::ostream &operator<<(std::ostream &os, const Bitboard<M, N> &board);
 
 } // namespace Tilted
 
-// Member and free-function definitions (constexpr masks, ops, streaming). They
-// are #included into the module purview so they land in the BMI -- constexpr
-// evaluation in importers needs the definitions reachable, which explicit
-// instantiation could not provide. Bitboard.inl is not a standalone TU: it sees
-// Bitboard, Word, Square, and std:: from this enclosing interface unit.
+// Member/free-function definitions, #included into the purview so they land in
+// the BMI (importers need them reachable for constexpr). Not a standalone TU.
 #include "Bitboard.inl"

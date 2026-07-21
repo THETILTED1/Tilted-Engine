@@ -59,9 +59,7 @@ inline constexpr Bitboard<M, N> boardMask = [] {
     return mask;
 }();
 
-// External square <-> internal bit translations (the padding bijection). Let
-// the contiguous shift remap trade the per-bit padding arithmetic for a table
-// load.
+// External square <-> internal bit translations (the padding bijection).
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
 inline constexpr std::array<Square, M * N> squareToBit = [] {

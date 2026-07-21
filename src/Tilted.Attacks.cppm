@@ -5,9 +5,8 @@ export import Tilted.Bitboard;
 
 export namespace Tilted::Attacks {
 
-// Simple leapers: the attack set is occupancy-independent -- the piece jumps to
-// every on-board square reachable by its move vector (and all sign/axis
-// reflections), regardless of what sits in between.
+// Simple leapers: occupancy-independent -- the piece reaches every square its
+// move vector hits (all sign/axis reflections), ignoring what's between.
 
 // Wazir (0,1): one step orthogonally.
 template <std::size_t M, std::size_t N>

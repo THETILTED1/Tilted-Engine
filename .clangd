@@ -1,17 +1,13 @@
-# clangd configuration for the Tilted-Engine C++23 module build.
-#
-# Flags come from CMake's compile_commands.json in build/ (refresh it with
-# `cmake --preset default`), which carries each module's real command line:
-# -std=c++23, -stdlib=libc++, and the module machinery for `import std;` and the
-# inter-module imports.
+# Per-file flags come from build/compile_commands.json (regenerate: cmake --preset clang).
 CompileFlags:
   CompilationDatabase: build
 ---
-# Bitboard.inl is an included fragment, not its own TU, so it has no
-# compile_commands entry. Tell clangd it is C++ (libc++) so it engages rather
-# than bailing; opened standalone it still shows context-free-fragment squiggles
-# (by design it is #included into Tilted.Bitboard.cppm).
+# Bitboard.inl is #included into Tilted.Bitboard.cppm's purview, not compiled
+# alone, so standalone it looks all-undefined. Give it C++ flags but suppress the
+# false diagnostics; real errors surface in Tilted.Bitboard.cppm and the build.
 If:
   PathMatch: .*\.inl
 CompileFlags:
   Add: [-xc++, -std=c++23, -stdlib=libc++]
+Diagnostics:
+  Suppress: "*"

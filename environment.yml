@@ -1,0 +1,16 @@
+# Userspace (no-sudo) C++23 build toolchain. Usage:
+#   conda env create -f environment.yml && conda activate tilted
+# cmake is pinned to 4.4 to match the import-std UUID in CMakeLists.txt.
+name: tilted
+channels:
+  - conda-forge
+dependencies:
+  - clang=22
+  - clangxx=22
+  - clang-tools=22   # clangd
+  - libcxx=22
+  - libcxx-devel=22  # libc++ headers + std.cppm (for `import std;`)
+  - libcxxabi=22
+  - lld=22
+  - cmake=4.4        # matches CMAKE_EXPERIMENTAL_CXX_IMPORT_STD in CMakeLists.txt
+  - ninja
