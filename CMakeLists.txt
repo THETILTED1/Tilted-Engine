@@ -14,12 +14,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)  # for clangd (see .clangd)
 # Stdlib choice lives in the presets, not here: it must be set before project()
 # or CMake's `import std;` detection picks the wrong std module (clang->libc++, gcc->libstdc++).
 
-# Module interface units; CMake derives the build order itself. Bitboard.inl is a
-# plain #include of Tilted.Bitboard.cppm, so it is intentionally not listed.
-# PUBLIC (not PRIVATE): the module file set is the engine's API surface, so
-# consumers that link `tilted` -- the eventual main executable and the test
-# suite below -- can `import` these. A PRIVATE file set is unimportable outside
-# its owning target.
+# Module interface units; CMake derives the build order. Bitboard.inl is a plain
+# #include, so it's not listed. PUBLIC (not PRIVATE) so consumers that link
+# `tilted` (tests, a future main) can `import` these -- a PRIVATE set can't.
 add_library(tilted STATIC)
 target_sources(tilted
   PUBLIC

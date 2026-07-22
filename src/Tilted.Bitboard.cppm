@@ -10,10 +10,8 @@ using Word = std::conditional_t<
     (L <= 16), std::uint16_t,
     std::conditional_t<(L <= 32), std::uint32_t, std::uint64_t>>;
 
-// Top-left justified: square (rank r, file f) is bit r*innerCols + f, so bit 0
-// is a8/a14. A Square IS that internal bit index -- the canonical coordinate
-// everywhere. The dense external M*N numbering survives only in the
-// squareToBit/bitToSquare tables, at the I/O boundary (algebraic, FEN/UCI).
+// A Square is the internal bit index r*innerCols + f (bit 0 = a8/a14). Dense
+// external M*N numbering survives only in squareToBit/bitToSquare.
 export template <std::size_t M, std::size_t N>
     requires(N <= 64)
 class Bitboard {
@@ -24,6 +22,12 @@ class Bitboard {
     static constexpr std::size_t cols();
     static constexpr Bitboard squareToBitboard(Square s);
     static constexpr Square flipRank(Square s);
+    static constexpr Bitboard fileMask(Square s);
+    static constexpr Bitboard rankMask(Square s);
+    static constexpr Bitboard diagonalMask(Square s);
+    static constexpr Bitboard antiDiagonalMask(Square s);
+    static constexpr Square squareToBit(Square s);
+    static constexpr Square bitToSquare(Square b);
 
     constexpr bool operator==(const Bitboard &other) const;
     constexpr bool empty() const;
@@ -43,6 +47,11 @@ class Bitboard {
     constexpr Bitboard operator|(const Bitboard &other) const;
     constexpr Bitboard operator&(const Bitboard &other) const;
     constexpr Bitboard operator^(const Bitboard &other) const;
+
+    constexpr Bitboard &operator+=(const Bitboard &other);
+    constexpr Bitboard &operator-=(const Bitboard &other);
+    constexpr Bitboard operator+(const Bitboard &other) const;
+    constexpr Bitboard operator-(const Bitboard &other) const;
 
     constexpr Bitboard &operator<<=(Square shift);
     constexpr Bitboard &operator>>=(Square shift);
@@ -64,6 +73,8 @@ class Bitboard {
     static constexpr std::size_t bits = 8 * sizeof(Word<M * N>);
     static constexpr std::size_t innerCols = std::bit_ceil(N);
     static constexpr std::size_t wordCount = (innerCols * M + bits - 1) / bits;
+
+    static constexpr Bitboard boardMask();
 
     std::array<Word<M * N>, wordCount> data{};
 };

@@ -28,63 +28,101 @@ constexpr Bitboard<M, N> Bitboard<M, N>::squareToBitboard(Square s) {
     return result;
 }
 
-// Precomputed masks: compile-time data, indexed at runtime with no call.
+// Line masks keyed by any square on the line; the line index is derived
+// internally. Member functions wrap a function-local static constexpr table (a
+// std::array<Bitboard> data member can't work -- incomplete type in-class).
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
-inline constexpr std::array<Bitboard<M, N>, N> fileMasks = [] {
-    constexpr std::size_t ic = std::bit_ceil(N);
-    std::array<Bitboard<M, N>, N> masks{};
-    for (std::size_t f = 0; f < N; ++f)
+constexpr Bitboard<M, N> Bitboard<M, N>::fileMask(Square s) {
+    static constexpr std::array<Bitboard, N> masks = [] {
+        std::array<Bitboard, N> m{};
+        for (std::size_t ff = 0; ff < N; ++ff)
+            for (std::size_t r = 0; r < M; ++r)
+                m[ff] |= squareToBitboard(r * innerCols + ff);
+        return m;
+    }();
+    return masks[s % innerCols];
+}
+
+template <std::size_t M, std::size_t N>
+    requires(N <= 64)
+constexpr Bitboard<M, N> Bitboard<M, N>::rankMask(Square s) {
+    static constexpr std::array<Bitboard, M> masks = [] {
+        std::array<Bitboard, M> m{};
+        for (std::size_t rr = 0; rr < M; ++rr)
+            for (std::size_t f = 0; f < N; ++f)
+                m[rr] |= squareToBitboard(rr * innerCols + f);
+        return m;
+    }();
+    return masks[s / innerCols];
+}
+
+// Diagonal (a1-h8 "/", along northEast/southWest): squares share r + f.
+// Antidiagonal (a8-h1 "\", along northWest/southEast): squares share r - f.
+template <std::size_t M, std::size_t N>
+    requires(N <= 64)
+constexpr Bitboard<M, N> Bitboard<M, N>::diagonalMask(Square s) {
+    static constexpr std::array<Bitboard, M + N - 1> masks = [] {
+        std::array<Bitboard, M + N - 1> m{};
         for (std::size_t r = 0; r < M; ++r)
-            masks[f] |= Bitboard<M, N>::squareToBitboard(r * ic + f);
-    return masks;
-}();
+            for (std::size_t f = 0; f < N; ++f)
+                m[r + f] |= squareToBitboard(r * innerCols + f);
+        return m;
+    }();
+    return masks[s / innerCols + s % innerCols];
+}
 
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
-inline constexpr std::array<Bitboard<M, N>, M> rankMasks = [] {
-    constexpr std::size_t ic = std::bit_ceil(N);
-    std::array<Bitboard<M, N>, M> masks{};
-    for (std::size_t r = 0; r < M; ++r)
-        for (std::size_t f = 0; f < N; ++f)
-            masks[r] |= Bitboard<M, N>::squareToBitboard(r * ic + f);
-    return masks;
-}();
+constexpr Bitboard<M, N> Bitboard<M, N>::antiDiagonalMask(Square s) {
+    static constexpr std::array<Bitboard, M + N - 1> masks = [] {
+        std::array<Bitboard, M + N - 1> m{};
+        for (std::size_t r = 0; r < M; ++r)
+            for (std::size_t f = 0; f < N; ++f)
+                m[r + (N - 1) - f] |= squareToBitboard(r * innerCols + f);
+        return m;
+    }();
+    return masks[s / innerCols + (N - 1) - s % innerCols];
+}
 
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
-inline constexpr Bitboard<M, N> boardMask = [] {
-    constexpr std::size_t ic = std::bit_ceil(N);
-    Bitboard<M, N> mask{};
-    for (std::size_t r = 0; r < M; ++r)
-        for (std::size_t f = 0; f < N; ++f)
-            mask |= Bitboard<M, N>::squareToBitboard(r * ic + f);
+constexpr Bitboard<M, N> Bitboard<M, N>::boardMask() {
+    static constexpr Bitboard mask = [] {
+        Bitboard m{};
+        for (std::size_t r = 0; r < M; ++r)
+            for (std::size_t f = 0; f < N; ++f)
+                m |= squareToBitboard(r * innerCols + f);
+        return m;
+    }();
     return mask;
-}();
+}
 
-// Dense external square <-> internal bit translations (the padding bijection),
-// used only at the I/O boundary (algebraic, FEN/UCI, compact per-square
-// tables). The bit layout is canonical everywhere else; arithmetic never uses
-// these.
+// Dense external square <-> internal bit translations (padding bijection),
+// only at the I/O boundary; arithmetic elsewhere uses canonical bit layout.
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
-inline constexpr std::array<Square, M * N> squareToBit = [] {
-    constexpr std::size_t ic = std::bit_ceil(N);
-    std::array<Square, M * N> t{};
-    for (std::size_t s = 0; s < M * N; ++s)
-        t[s] = (s / N) * ic + s % N;
-    return t;
-}();
+constexpr Square Bitboard<M, N>::squareToBit(Square s) {
+    static constexpr std::array<Square, M * N> table = [] {
+        std::array<Square, M * N> t{};
+        for (std::size_t d = 0; d < M * N; ++d)
+            t[d] = (d / N) * innerCols + d % N;
+        return t;
+    }();
+    return table[s];
+}
 
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
-inline constexpr std::array<Square, std::bit_ceil(N) * M> bitToSquare = [] {
-    constexpr std::size_t ic = std::bit_ceil(N);
-    std::array<Square, ic * M> t{};
-    for (std::size_t s = 0; s < M * N; ++s)
-        t[(s / N) * ic + s % N] = s;
-    return t;
-}();
+constexpr Square Bitboard<M, N>::bitToSquare(Square b) {
+    static constexpr std::array<Square, innerCols * M> table = [] {
+        std::array<Square, innerCols * M> t{};
+        for (std::size_t d = 0; d < M * N; ++d)
+            t[(d / N) * innerCols + d % N] = d;
+        return t;
+    }();
+    return table[b];
+}
 
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
@@ -158,7 +196,7 @@ constexpr Bitboard<M, N> Bitboard<M, N>::operator~() const {
     Bitboard result;
     for (std::size_t i = 0; i < wordCount; ++i)
         result.data[i] = ~data[i];
-    result &= boardMask<M, N>;
+    result &= boardMask();
     return result;
 }
 
@@ -213,11 +251,54 @@ Bitboard<M, N>::operator^(const Bitboard &other) const {
     return result;
 }
 
-// Raw bitwise shift over the internal bit layout: the whole word array is one
-// wide integer, carrying across word lines. Bits shifted past the top word are
-// dropped, but nothing is board-masked -- a shift can wrap a bit into a padding
-// column or an off-board square. Callers that need a clean board (and the
-// board-edge semantics themselves) mask the result: see north/south/east/west.
+// Raw wide-integer arithmetic over the little-endian word array (data[0] least
+// significant); carry/borrow propagate across words and overflow wraps. NOT
+// board-masked -- for the subtract trick in sliding attacks; callers mask.
+template <std::size_t M, std::size_t N>
+    requires(N <= 64)
+constexpr Bitboard<M, N> &Bitboard<M, N>::operator+=(const Bitboard &other) {
+    Word<M * N> carry = 0;
+    for (std::size_t i = 0; i < wordCount; ++i) {
+        const Word<M * N> sum = Word<M * N>(data[i] + other.data[i] + carry);
+        carry = Word<M * N>(sum < data[i] || (sum == data[i] && carry));
+        data[i] = sum;
+    }
+    return *this;
+}
+
+template <std::size_t M, std::size_t N>
+    requires(N <= 64)
+constexpr Bitboard<M, N> &Bitboard<M, N>::operator-=(const Bitboard &other) {
+    Word<M * N> borrow = 0;
+    for (std::size_t i = 0; i < wordCount; ++i) {
+        const Word<M * N> diff = Word<M * N>(data[i] - other.data[i] - borrow);
+        borrow = Word<M * N>(data[i] < other.data[i] ||
+                             (data[i] == other.data[i] && borrow));
+        data[i] = diff;
+    }
+    return *this;
+}
+
+template <std::size_t M, std::size_t N>
+    requires(N <= 64)
+constexpr Bitboard<M, N>
+Bitboard<M, N>::operator+(const Bitboard &other) const {
+    Bitboard result = *this;
+    result += other;
+    return result;
+}
+
+template <std::size_t M, std::size_t N>
+    requires(N <= 64)
+constexpr Bitboard<M, N>
+Bitboard<M, N>::operator-(const Bitboard &other) const {
+    Bitboard result = *this;
+    result -= other;
+    return result;
+}
+
+// Raw shift treating the word array as one wide integer; top bits drop. NOT
+// board-masked (can wrap into padding/off-board) -- callers mask (north/etc).
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
 constexpr Bitboard<M, N> &Bitboard<M, N>::operator<<=(Square shift) {
@@ -281,19 +362,19 @@ constexpr Bitboard<M, N> Bitboard<M, N>::north() const {
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
 constexpr Bitboard<M, N> Bitboard<M, N>::south() const {
-    return (*this << innerCols) & boardMask<M, N>;
+    return (*this << innerCols) & boardMask();
 }
 
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
 constexpr Bitboard<M, N> Bitboard<M, N>::east() const {
-    return (*this & ~fileMasks<M, N>[N - 1]) << 1;
+    return (*this & ~fileMask(N - 1)) << 1;
 }
 
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
 constexpr Bitboard<M, N> Bitboard<M, N>::west() const {
-    return (*this & ~fileMasks<M, N>[0]) >> 1;
+    return (*this & ~fileMask(0)) >> 1;
 }
 
 template <std::size_t M, std::size_t N>

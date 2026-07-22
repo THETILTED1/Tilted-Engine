@@ -1,6 +1,5 @@
-# Convenience wrapper around the CMake build. CMake + Ninja is the real build
-# system (see CMakeLists.txt / CMakePresets.json); this Makefile is just task
-# shortcuts and repo housekeeping.
+# Convenience wrapper; CMake + Ninja is the real build system (see CMakeLists.txt
+# / CMakePresets.json). Just task shortcuts.
 
 CMAKE  ?= cmake
 CTEST  ?= ctest

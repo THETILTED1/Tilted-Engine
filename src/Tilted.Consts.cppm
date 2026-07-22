@@ -7,6 +7,29 @@ export namespace Tilted {
 using Square = std::size_t;
 enum Color { Black, White };
 
+// Standard pieces first, then fairy pieces in ascending order of value.
+enum class Piece {
+    Pawn,
+    Knight,
+    Bishop,
+    Rook,
+    Queen,
+    King,
+    Alfil,
+    Dabbaba,
+    Ferz,
+    Wazir,
+    Camel,
+    Grasshopper,
+    Horse,
+    Wildebeest,
+    Dragon,
+    General,
+    Archbishop,
+    Chancellor,
+    Amazon,
+};
+
 using Score = int;
 using Depth = int;
 

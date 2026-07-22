@@ -32,6 +32,11 @@ constexpr Bitboard<M, N> KnightAttacks(Square s);
 template <std::size_t M, std::size_t N>
 constexpr Bitboard<M, N> CamelAttacks(Square s);
 
+// Pawn captures (the two forward diagonals). Kept apart from PieceAttacks and
+// given a color, since pawns are special-cased in every variant.
+template <std::size_t M, std::size_t N>
+constexpr Bitboard<M, N> PawnAttacks(Color c, Square s);
+
 // Occupancy-dependent pieces: the reachable set depends on the current board,
 // so each takes the full occupancy alongside the source square.
 
@@ -54,4 +59,12 @@ template <std::size_t M, std::size_t N>
 constexpr Bitboard<M, N> GrasshopperAttacks(Square s,
                                             const Bitboard<M, N> &occupancy);
 
+// Unified dispatch. The piece is a template parameter, so the switch below
+// collapses to a single case per instantiation -- no runtime branch.
+template <Piece P, std::size_t M, std::size_t N>
+constexpr Bitboard<M, N> PieceAttacks(Square s, const Bitboard<M, N> &occ);
+
 } // namespace Tilted::Attacks
+
+// Table definitions, #included into the purview for constexpr reachability.
+#include "Attacks.inl"

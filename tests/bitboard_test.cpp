@@ -1,14 +1,5 @@
-// Bitboard<M, N> test suite.
-//
-// Squares are internal bit indices in the M x innerCols layout (innerCols =
-// bit_ceil(N)); bit r*innerCols + f is rank r, file f. Most tests are typed and
-// run against every board size in `Boards`, mixing power-of-two widths (no
-// padding) with odd widths (padding columns f in [N, innerCols)) and single- vs
-// multi-word storage.
-//
-// The test TU consumes the module textually (GoogleTest is not a module) and
-// only `import`s Tilted.Bitboard -- it does not `import std`, so its own
-// standard-library needs come from ordinary includes.
+// Bitboard<M,N> tests, mostly typed over `Boards`. Squares are internal bit
+// indices (r*innerCols + f). GoogleTest isn't a module -- std via includes.
 #include <algorithm>
 #include <bit>
 #include <cstddef>
@@ -84,9 +75,8 @@ TYPED_TEST(BitboardTest, ToggleTwiceClears) {
     EXPECT_TRUE(b.empty());
 }
 
-// ~empty must set exactly the M*N on-board squares and leave the padding
-// columns clear -- this is what proves boardMask is addressed by bit, not by
-// dense square.
+// ~empty must set exactly the M*N on-board squares and leave padding clear --
+// proves boardMask is addressed by bit, not by dense square.
 TYPED_TEST(BitboardTest, FullBoardComplement) {
     using G = Geo<TypeParam>;
     const TypeParam full = ~TypeParam{};
@@ -120,9 +110,8 @@ TYPED_TEST(BitboardTest, Bitwise) {
     EXPECT_EQ((a ^ b), G::one(G::M - 1, G::N - 1));
 }
 
-// The core geometry test: every single-square board steps to the right
-// neighbor, or drops off the edge. Exercises the raw shifts plus the
-// wrap-guarding masks across all sizes and word counts.
+// Core geometry: each single-square board steps to its neighbor or off the
+// edge -- exercises the raw shifts + wrap-guard masks across all sizes.
 TYPED_TEST(BitboardTest, Directions) {
     using G = Geo<TypeParam>;
     const TypeParam none;
