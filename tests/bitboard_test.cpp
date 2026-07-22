@@ -3,11 +3,13 @@
 #include <algorithm>
 #include <bit>
 #include <cstddef>
+#include <cstdint>
 #include <vector>
 
 #include <gtest/gtest.h>
 
 import Tilted.Bitboard;
+import Tilted.Attacks;
 
 using Tilted::Bitboard;
 using Tilted::Square;
@@ -185,6 +187,58 @@ TYPED_TEST(BitboardTest, PopLeastAscending) {
     }
     EXPECT_TRUE(b.empty());
     EXPECT_EQ(b.popLeastSquare(), G::bitSpan);
+}
+
+// Brute-force diagonal ray walk from (r,f), first blocker included -- the
+// independent reference for hyperbola quintessence.
+template <class BB> BB bishopRef(std::size_t r, std::size_t f, const BB &occ) {
+    using G = Geo<BB>;
+    constexpr int dirs[4][2] = {{-1, 1}, {-1, -1}, {1, 1}, {1, -1}};
+    BB out;
+    for (const auto &d : dirs) {
+        int rr = static_cast<int>(r), ff = static_cast<int>(f);
+        for (;;) {
+            rr += d[0];
+            ff += d[1];
+            if (rr < 0 || rr >= static_cast<int>(G::M) || ff < 0 ||
+                ff >= static_cast<int>(G::N))
+                break;
+            const Square sq = G::bitOf(static_cast<std::size_t>(rr),
+                                       static_cast<std::size_t>(ff));
+            out.toggle(sq);
+            if (occ.test(sq))
+                break;
+        }
+    }
+    return out;
+}
+
+// Cross-check BishopAttacks over empty, full, and a pseudo-random occupancy at
+// every square -- exercises the rankMirror reversal on both diagonals across
+// single- and multi-word boards.
+TYPED_TEST(BitboardTest, BishopAttacks) {
+    using G = Geo<TypeParam>;
+    TypeParam rnd;
+    std::uint64_t seed = 0x9e3779b97f4a7c15ull;
+    for (std::size_t r = 0; r < G::M; ++r)
+        for (std::size_t f = 0; f < G::N; ++f) {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            if (seed & 1)
+                rnd.toggle(G::bitOf(r, f));
+        }
+    const TypeParam occs[] = {TypeParam{}, ~TypeParam{}, rnd};
+
+    for (const TypeParam &occ : occs)
+        for (std::size_t r = 0; r < G::M; ++r)
+            for (std::size_t f = 0; f < G::N; ++f) {
+                const Square s = G::bitOf(r, f);
+                const TypeParam got =
+                    Tilted::Attacks::BishopAttacks<G::M, G::N>(s, occ);
+                EXPECT_EQ(got, bishopRef<TypeParam>(r, f, occ))
+                    << "r=" << r << " f=" << f;
+            }
 }
 
 // A couple of concrete cases that pin the exact internal layout numbers, so a

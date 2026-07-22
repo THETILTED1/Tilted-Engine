@@ -43,11 +43,13 @@ constexpr Bitboard<M, N> PawnAttacks(Color c, Square s);
 // Horse: the Xiangqi knight. Moves as a (1,2) leaper but is blocked ("hobbled")
 // by a piece on the orthogonally adjacent square along its leg.
 template <std::size_t M, std::size_t N>
-constexpr Bitboard<M, N> HorseAttacks(Square s, const Bitboard<M, N> &occupancy);
+constexpr Bitboard<M, N> HorseAttacks(Square s,
+                                      const Bitboard<M, N> &occupancy);
 
 // Bishop: slides diagonally until it hits (and includes) the first blocker.
 template <std::size_t M, std::size_t N>
-constexpr Bitboard<M, N> BishopAttacks(Square s, const Bitboard<M, N> &occupancy);
+constexpr Bitboard<M, N> BishopAttacks(Square s,
+                                       const Bitboard<M, N> &occupancy);
 
 // Rook: slides orthogonally until it hits (and includes) the first blocker.
 template <std::size_t M, std::size_t N>

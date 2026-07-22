@@ -7,6 +7,18 @@ export namespace Tilted {
 using Square = std::size_t;
 enum Color { Black, White };
 
+using Score = int;
+using Depth = int;
+
+using Hash = std::uint64_t;
+
+inline constexpr Score VICTORY = 20000;
+inline constexpr Score DRAW = 0;
+
+inline constexpr Depth MAX_PLY = 128;
+
+inline constexpr std::size_t MAX_THREADS = 8;
+
 // Standard pieces first, then fairy pieces in ascending order of value.
 enum class Piece {
     Pawn,
@@ -29,16 +41,6 @@ enum class Piece {
     Chancellor,
     Amazon,
 };
-
-using Score = int;
-using Depth = int;
-
-inline constexpr Score VICTORY = 20000;
-inline constexpr Score DRAW = 0;
-
-inline constexpr Depth MAX_PLY = 128;
-
-inline constexpr std::size_t MAX_THREADS = 8;
 
 enum class Variant {
     Chess,

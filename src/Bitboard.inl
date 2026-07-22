@@ -133,7 +133,7 @@ constexpr bool Bitboard<M, N>::operator==(const Bitboard &other) const {
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
 constexpr bool Bitboard<M, N>::empty() const {
-    for (Word<M *N> word : data)
+    for (Word<M * N> word : data)
         if (word)
             return false;
     return true;
@@ -155,7 +155,7 @@ template <std::size_t M, std::size_t N>
     requires(N <= 64)
 constexpr std::size_t Bitboard<M, N>::count() const {
     std::size_t total = 0;
-    for (Word<M *N> word : data)
+    for (Word<M * N> word : data)
         total += std::popcount(word);
     return total;
 }
