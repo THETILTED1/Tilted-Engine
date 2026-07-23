@@ -25,7 +25,7 @@ using Table = typename TableType<T, Dims...>::type;
 // runs in constant evaluation -- one stream can fill the Zobrist tables
 export class Random {
   public:
-    constexpr Random(Hash seed) : state(seed) {}
+    constexpr Random(Hash seed = 0x9E3779B97F4A7C15ULL) : state(seed) {}
 
     constexpr Hash operator()() {
         Hash z = (state += 0x9E3779B97F4A7C15ULL);
@@ -37,5 +37,7 @@ export class Random {
   private:
     Hash state;
 };
+
+struct Empty{};
 
 } // namespace Tilted::Util

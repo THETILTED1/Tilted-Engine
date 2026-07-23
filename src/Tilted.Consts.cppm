@@ -26,6 +26,12 @@ inline constexpr std::size_t MAX_TYPES = 11;
 inline constexpr std::size_t MAX_RANKS = 14;
 inline constexpr std::size_t MAX_FILES = 14;
 
+// Pocket (pieces in hand) for drop variants: up to MAX_IN_HAND of one kind
+// (all 16 pawns) over MAX_DROP_TYPES piece-type slots -- Seirawan's 8 types
+// (its gated 7th/8th included) is the widest drop variant.
+inline constexpr std::size_t MAX_IN_HAND = 16;
+inline constexpr std::size_t MAX_DROP_TYPES = 8;
+
 // Standard pieces first, then fairy pieces in ascending order of value.
 enum class Piece {
     Pawn,
@@ -47,6 +53,7 @@ enum class Piece {
     Archbishop,
     Chancellor,
     Amazon,
+    None,
 };
 
 enum class Variant {
@@ -73,12 +80,11 @@ enum class Variant {
     Duck,
     Clobber,
     Cloister, // etc
+    None
 };
 
 // The piece types a variant uses, in canonical order -- the single source of
-// truth for both the ordering and the count (see NumPieceTypes below). if
-// constexpr (not switch) so each variant's differently-sized array is the only
-// live return per instantiation.
+// truth for both the ordering and the count
 template <Variant V> inline constexpr auto PieceMapping() {
     using enum Piece;
 
@@ -123,9 +129,77 @@ template <Variant V> inline constexpr auto PieceMapping() {
     }
 }
 
-// Count derives from the mapping, so the two can never drift.
-template <Variant V> inline constexpr std::size_t NumPieceTypes() {
-    return PieceMapping<V>().size();
-}
+// Compile-time variant configuration. Each Variant instantiates a distinct
+// Ruleset type, so members may differ in type and size across variants
+template <Variant V> class Ruleset {
+  public:
+    // Membership scaffold: is this variant one of the listed set?
+    static constexpr auto oneOf = [](std::initializer_list<Variant> vs) {
+        for (Variant v : vs)
+            if (v == V)
+                return true;
+        return false;
+    };
+    
+    // Piece set and count, from the single-source mapping.
+    static constexpr auto pieces = PieceMapping<V>();
+    static constexpr std::size_t types = pieces.size();
+
+    // Board dimensions as one value, so both come from a single initializer;
+    // use dims.ranks / dims.cols, or `auto [ranks, cols] = Ruleset<V>::dims`.
+    struct Dims {
+        std::size_t ranks, cols;
+    };
+    static constexpr Dims dims = [] {
+        if constexpr (oneOf({Variant::Gothic, Variant::Jungle}))
+            return Dims{8, 10}; // Capablanca-style: 8 ranks, 10 files
+        else if constexpr (oneOf({Variant::XXL, Variant::BehindTheMirror}))
+            return Dims{14, 14}; // TODO: confirm the XXL board
+        else if constexpr (V == Variant::Tinyhouse)
+            return Dims{4, 4};
+        else
+            return Dims{8, 8};
+
+        // clobber, cloister unknown
+    }();
+
+    static constexpr int stalemate = [] {
+        if constexpr (oneOf({Variant::Antichess, Variant::Tinyhouse}))
+            return 1;
+        else if constexpr (oneOf({Variant::Chaturanga}))
+            return -1;
+        else
+            return 0;
+    }(); // TODO: per-variant stalemate result
+
+    static constexpr int checky = [] {
+        if constexpr (V == Variant::ThreeCheck)
+            return 3;
+        else if constexpr (V == Variant::BehindTheMirror)
+            return 5;
+        else
+            return 0;
+    }();
+
+    static constexpr int royal = [] {
+        return 0; // placeholder
+    }();
+
+    static constexpr bool pocket = oneOf({Variant::Crazyhouse, Variant::Tinyhouse, Variant::Seirawan});
+
+    static constexpr bool petrified = oneOf({Variant::Petrified});
+    // clobber, cloister?
+
+    static constexpr bool points = oneOf({Variant::MiniForest, Variant::Petrified});
+
+    static constexpr bool enPassant = !oneOf({Variant::RacingKings, Variant::Chaturanga, Variant::MiniForest,
+        Variant::XXL, Variant::BehindTheMirror, Variant::Tinyhouse, Variant::Jungle, Variant::Clobber, Variant::Cloister});
+
+    static constexpr bool castling = !oneOf({Variant::Antichess, Variant::RacingKings, Variant::Chaturanga,
+        Variant::MiniForest, Variant::BehindTheMirror, Variant::Tinyhouse, Variant::Jungle, Variant::Clobber, 
+        Variant::Cloister});
+
+};
+
 
 } // namespace Tilted

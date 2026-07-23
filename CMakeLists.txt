@@ -26,6 +26,7 @@ target_sources(tilted
       src/Tilted.Zobrist.cppm
       src/Tilted.Bitboard.cppm
       src/Tilted.Attacks.cppm
+      src/Tilted.Move.cppm
       src/Tilted.Position.cppm
 )
 
