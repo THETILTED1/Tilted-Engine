@@ -1,42 +1,20 @@
-// Bitboard<M,N> tests, mostly typed over `Boards`. Squares are internal bit
-// indices (r*innerCols + f). GoogleTest isn't a module -- std via includes.
+// Bitboard<M,N> tests, typed over `Boards`. Squares are internal bit indices
+// (r*innerCols + f). GoogleTest isn't a module -- std via includes.
 #include <algorithm>
 #include <bit>
 #include <cstddef>
-#include <cstdint>
 #include <vector>
 
 #include <gtest/gtest.h>
 
 import Tilted.Bitboard;
-import Tilted.Attacks;
 
 using Tilted::Bitboard;
 using Tilted::Square;
 
-// Geometry helpers derived from a Bitboard type, so typed tests can name
-// squares by (rank, file) without reaching into the class internals.
-template <class BB> struct Geo {
-    static constexpr std::size_t M = BB::ranks();
-    static constexpr std::size_t N = BB::cols();
-    static constexpr std::size_t IC = std::bit_ceil(N);
-    static constexpr std::size_t bitSpan = IC * M; // one past the last bit
-    static constexpr Square bitOf(std::size_t r, std::size_t f) {
-        return r * IC + f;
-    }
-    static BB one(std::size_t r, std::size_t f) {
-        return BB::squareToBitboard(bitOf(r, f));
-    }
-};
+#include "board_types.hpp"
 
 template <class BB> class BitboardTest : public ::testing::Test {};
-
-using Boards = ::testing::Types<
-    // primary sizes
-    Bitboard<4, 4>, Bitboard<6, 6>, Bitboard<8, 8>, Bitboard<8, 10>,
-    Bitboard<14, 14>,
-    // odd sizes
-    Bitboard<3, 5>, Bitboard<5, 9>, Bitboard<11, 7>, Bitboard<13, 13>>;
 
 TYPED_TEST_SUITE(BitboardTest, Boards);
 
@@ -189,56 +167,43 @@ TYPED_TEST(BitboardTest, PopLeastAscending) {
     EXPECT_EQ(b.popLeastSquare(), G::bitSpan);
 }
 
-// Brute-force diagonal ray walk from (r,f), first blocker included -- the
-// independent reference for hyperbola quintessence.
-template <class BB> BB bishopRef(std::size_t r, std::size_t f, const BB &occ) {
+// Brute-force open segment: when a and b share a rank/file/diagonal, walk unit
+// steps from a toward b collecting the squares strictly between.
+template <class BB> BB betweenRef(int ra, int fa, int rb, int fb) {
     using G = Geo<BB>;
-    constexpr int dirs[4][2] = {{-1, 1}, {-1, -1}, {1, 1}, {1, -1}};
+    const int ddr = ra > rb ? ra - rb : rb - ra;
+    const int ddf = fa > fb ? fa - fb : fb - fa;
+    const bool aligned = (ddr == 0 && ddf > 0) || (ddf == 0 && ddr > 0) ||
+                         (ddr == ddf && ddr > 0);
     BB out;
-    for (const auto &d : dirs) {
-        int rr = static_cast<int>(r), ff = static_cast<int>(f);
-        for (;;) {
-            rr += d[0];
-            ff += d[1];
-            if (rr < 0 || rr >= static_cast<int>(G::M) || ff < 0 ||
-                ff >= static_cast<int>(G::N))
-                break;
-            const Square sq = G::bitOf(static_cast<std::size_t>(rr),
-                                       static_cast<std::size_t>(ff));
-            out.toggle(sq);
-            if (occ.test(sq))
-                break;
-        }
-    }
+    if (!aligned)
+        return out;
+    const int dr = (rb > ra) - (rb < ra);
+    const int df = (fb > fa) - (fb < fa);
+    for (int r = ra + dr, f = fa + df; r != rb || f != fb; r += dr, f += df)
+        out.toggle(
+            G::bitOf(static_cast<std::size_t>(r), static_cast<std::size_t>(f)));
     return out;
 }
 
-// Cross-check BishopAttacks over empty, full, and a pseudo-random occupancy at
-// every square -- exercises the rankMirror reversal on both diagonals across
-// single- and multi-word boards.
-TYPED_TEST(BitboardTest, BishopAttacks) {
+// Exhaustive over every ordered pair of squares (also covers symmetry and the
+// not-aligned / same-square empty cases).
+TYPED_TEST(BitboardTest, Between) {
     using G = Geo<TypeParam>;
-    TypeParam rnd;
-    std::uint64_t seed = 0x9e3779b97f4a7c15ull;
-    for (std::size_t r = 0; r < G::M; ++r)
-        for (std::size_t f = 0; f < G::N; ++f) {
-            seed ^= seed << 13;
-            seed ^= seed >> 7;
-            seed ^= seed << 17;
-            if (seed & 1)
-                rnd.toggle(G::bitOf(r, f));
-        }
-    const TypeParam occs[] = {TypeParam{}, ~TypeParam{}, rnd};
-
-    for (const TypeParam &occ : occs)
-        for (std::size_t r = 0; r < G::M; ++r)
-            for (std::size_t f = 0; f < G::N; ++f) {
-                const Square s = G::bitOf(r, f);
-                const TypeParam got =
-                    Tilted::Attacks::BishopAttacks<G::M, G::N>(s, occ);
-                EXPECT_EQ(got, bishopRef<TypeParam>(r, f, occ))
-                    << "r=" << r << " f=" << f;
-            }
+    for (std::size_t ra = 0; ra < G::M; ++ra)
+        for (std::size_t fa = 0; fa < G::N; ++fa)
+            for (std::size_t rb = 0; rb < G::M; ++rb)
+                for (std::size_t fb = 0; fb < G::N; ++fb) {
+                    const Square a = G::bitOf(ra, fa);
+                    const Square b = G::bitOf(rb, fb);
+                    const TypeParam got = TypeParam::between(a, b);
+                    EXPECT_EQ(got, betweenRef<TypeParam>(static_cast<int>(ra),
+                                                         static_cast<int>(fa),
+                                                         static_cast<int>(rb),
+                                                         static_cast<int>(fb)))
+                        << "a=(" << ra << "," << fa << ") b=(" << rb << ","
+                        << fb << ")";
+                }
 }
 
 // A couple of concrete cases that pin the exact internal layout numbers, so a

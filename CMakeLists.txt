@@ -23,6 +23,7 @@ target_sources(tilted
     FILE_SET CXX_MODULES FILES
       src/Tilted.Consts.cppm
       src/Tilted.Util.cppm
+      src/Tilted.Zobrist.cppm
       src/Tilted.Bitboard.cppm
       src/Tilted.Attacks.cppm
       src/Tilted.Position.cppm

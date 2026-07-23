@@ -85,6 +85,34 @@ constexpr Bitboard<M, N> Bitboard<M, N>::antiDiagonalMask(Square s) {
     return masks[s / innerCols + (N - 1) - s % innerCols];
 }
 
+// Open segment between two aligned squares (both endpoints excluded); empty if
+// a and b share no rank, file, or diagonal. The shared line is monotonic in bit
+// index, so its squares strictly between a's and b's bits are exactly the
+// segment. Basis for check-blocking and pin detection.
+template <std::size_t M, std::size_t N>
+    requires(N <= 64)
+constexpr Bitboard<M, N> Bitboard<M, N>::between(Square a, Square b) {
+    const std::size_t ra = a / innerCols, fa = a % innerCols;
+    const std::size_t rb = b / innerCols, fb = b % innerCols;
+    Bitboard line;
+    if (ra == rb)
+        line = rankMask(a);
+    else if (fa == fb)
+        line = fileMask(a);
+    else if (ra + fa == rb + fb)
+        line = diagonalMask(a);
+    else if (ra + fb == rb + fa)
+        line = antiDiagonalMask(a);
+    else
+        return Bitboard{}; // not aligned
+    const Square lo = a < b ? a : b;
+    const Square hi = a < b ? b : a;
+    const Bitboard one = squareToBitboard(0);
+    const Bitboard segment =
+        (squareToBitboard(hi) - one) & ~((squareToBitboard(lo) << 1) - one);
+    return segment & line;
+}
+
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
 constexpr Bitboard<M, N> Bitboard<M, N>::boardMask() {
@@ -133,7 +161,7 @@ constexpr bool Bitboard<M, N>::operator==(const Bitboard &other) const {
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
 constexpr bool Bitboard<M, N>::empty() const {
-    for (Word<M * N> word : data)
+    for (Word<M *N> word : data)
         if (word)
             return false;
     return true;
@@ -155,7 +183,7 @@ template <std::size_t M, std::size_t N>
     requires(N <= 64)
 constexpr std::size_t Bitboard<M, N>::count() const {
     std::size_t total = 0;
-    for (Word<M * N> word : data)
+    for (Word<M *N> word : data)
         total += std::popcount(word);
     return total;
 }

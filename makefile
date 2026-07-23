@@ -21,7 +21,7 @@ build: $(BUILD)/CMakeCache.txt
 # Build just the test binary (kept out of the default build) and run it. The
 # deliverable build (`make build`) stays free of test code and GoogleTest.
 test: $(BUILD)/CMakeCache.txt
-	$(CMAKE) --build --preset $(PRESET) --target bitboard_test
+	$(CMAKE) --build --preset $(PRESET) --target unit_tests
 	$(CTEST) --test-dir $(BUILD) --output-on-failure
 
 configure: $(BUILD)/CMakeCache.txt

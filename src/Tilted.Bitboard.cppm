@@ -26,6 +26,7 @@ class Bitboard {
     static constexpr Bitboard rankMask(Square s);
     static constexpr Bitboard diagonalMask(Square s);
     static constexpr Bitboard antiDiagonalMask(Square s);
+    static constexpr Bitboard between(Square a, Square b);
     static constexpr Square squareToBit(Square s);
     static constexpr Square bitToSquare(Square b);
 

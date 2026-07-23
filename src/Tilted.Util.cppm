@@ -24,6 +24,7 @@ using Table = typename TableType<T, Dims...>::type;
 // splitmix64 (Vigna): counter-based, so any seed is valid and the whole device
 // runs in constant evaluation -- one stream can fill the Zobrist tables
 export class Random {
+  public:
     constexpr Random(Hash seed) : state(seed) {}
 
     constexpr Hash operator()() {
