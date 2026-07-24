@@ -32,6 +32,8 @@ inline constexpr std::size_t MAX_FILES = 14;
 inline constexpr std::size_t MAX_IN_HAND = 16;
 inline constexpr std::size_t MAX_DROP_TYPES = 8;
 
+inline constexpr std::size_t MAX_HISTORY_LEN = 256;
+
 // Standard pieces first, then fairy pieces in ascending order of value.
 enum class Piece {
     Pawn,
@@ -66,20 +68,20 @@ enum class Variant {
     RacingKings,
     Chaturanga,
     Paradigm,
-    MiniForest, // 8x8
+    MiniForest,
     XXL,
     Gothic,
-    BehindTheMirror, // different
+    BehindTheMirror,
     Setup,
     Tinyhouse,
     Crazyhouse,
-    Seirawan, // droppers
+    Seirawan,
     Petrified,
     Spell,
     Jungle,
     Duck,
     Clobber,
-    Cloister, // etc
+    Cloister,
     None
 };
 
@@ -100,33 +102,42 @@ template <Variant V> inline constexpr auto PieceMapping() {
     else if constexpr (V == Variant::RacingKings)
         return std::to_array({Knight, Bishop, Rook, Queen, King});
 
-    else if constexpr (V == Variant::MiniForest || V == Variant::Jungle)
-        return std::array<Piece, 0>{}; // placeholder
+    else if constexpr (V == Variant::MiniForest)
+        return std::to_array({Pawn, Bishop, King, Alfil, Dabbaba, Camel, Grasshopper});
 
-    else if constexpr (V == Variant::XXL) {
+    else if constexpr (V == Variant::Jungle)
+        return std::to_array({Pawn, Knight, Camel, Grasshopper, Wildebeest, Archbishop, Chancellor});
+
+    else if constexpr (V == Variant::XXL)
         return std::to_array({Pawn, Knight, Bishop, Rook, Queen, King, Camel,
                               General, Archbishop, Chancellor, Amazon});
-    }
 
     else if constexpr (V == Variant::Gothic || V == Variant::Seirawan)
         return std::to_array(
             {Pawn, Knight, Bishop, Rook, Queen, King, Archbishop, Chancellor});
 
-    else if constexpr (V == Variant::Tinyhouse) {
+    else if constexpr (V == Variant::Tinyhouse)
         return std::to_array({Pawn, King, Ferz, Wazir});
-    }
 
-    else if constexpr (V == Variant::Clobber) {
+    else if constexpr (V == Variant::Clobber) 
         return std::to_array({Pawn, Rook, King, Wazir});
-    }
 
-    else if constexpr (V == Variant::Cloister) {
+    else if constexpr (V == Variant::Cloister)
         return std::to_array({Wazir});
-    }
 
-    else {
+    else 
         std::unreachable();
-    }
+    
+}
+
+// Index of `p` in variant V's canonical piece list, or -1 if the variant
+// doesn't use that piece.
+template <Variant V> inline constexpr int PieceIndex(Piece p) {
+    constexpr auto ps = PieceMapping<V>();
+    for (std::size_t i = 0; i < ps.size(); ++i)
+        if (ps[i] == p)
+            return static_cast<int>(i);
+    return -1;
 }
 
 // Compile-time variant configuration. Each Variant instantiates a distinct
@@ -152,9 +163,9 @@ template <Variant V> class Ruleset {
     };
     static constexpr Dims dims = [] {
         if constexpr (oneOf({Variant::Gothic, Variant::Jungle}))
-            return Dims{8, 10}; // Capablanca-style: 8 ranks, 10 files
+            return Dims{8, 10};
         else if constexpr (oneOf({Variant::XXL, Variant::BehindTheMirror}))
-            return Dims{14, 14}; // TODO: confirm the XXL board
+            return Dims{14, 14};
         else if constexpr (V == Variant::Tinyhouse)
             return Dims{4, 4};
         else
@@ -182,12 +193,17 @@ template <Variant V> class Ruleset {
     }();
 
     static constexpr int royal = [] {
-        return 0; // placeholder
+        if constexpr (oneOf({Variant::Antichess, Variant::BehindTheMirror}))
+            return -1;
+        else if constexpr (V == Variant::Jungle)
+            return PieceIndex<V>(Piece::Grasshopper);
+        else
+            return PieceIndex<V>(Piece::King);
     }();
 
-    static constexpr bool pocket = oneOf({Variant::Crazyhouse, Variant::Tinyhouse, Variant::Seirawan});
+    static constexpr bool pocket = oneOf({Variant::Crazyhouse, Variant::Tinyhouse, Variant::Seirawan, Variant::Setup, Variant::Cloister});
 
-    static constexpr bool petrified = oneOf({Variant::Petrified});
+    static constexpr bool petrified = oneOf({Variant::Petrified, Variant::Cloister});
     // clobber, cloister?
 
     static constexpr bool points = oneOf({Variant::MiniForest, Variant::Petrified});
