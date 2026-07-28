@@ -1,8 +1,8 @@
-export module Tilted.Zobrist;
+export module Zobrist;
 
 import std;
-import Tilted.Consts;
-import Tilted.Util;
+import Consts;
+import Util;
 
 namespace Tilted::Zobrist {
 

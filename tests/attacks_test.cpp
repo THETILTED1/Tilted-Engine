@@ -7,9 +7,9 @@
 
 #include <gtest/gtest.h>
 
-import Tilted.Bitboard;
-import Tilted.Attacks;
-import Tilted.Util;
+import Bitboard;
+import Attacks;
+import Util;
 
 using Tilted::Bitboard;
 using Tilted::Square;

@@ -1,10 +1,10 @@
-export module Tilted.Position;
+export module Position;
 
 import std;
-import Tilted.Attacks; // transitively re-exports Bitboard + Consts
-import Tilted.Move;
-import Tilted.Util;
-import Tilted.Zobrist;
+import Attacks; // transitively re-exports Bitboard + Consts
+import Move;
+import Util;
+import Zobrist;
 
 export namespace Tilted {
 
@@ -38,7 +38,11 @@ template <Variant V> struct Castles{
 
     std::array<std::uint8_t, Bits<V>::ranks() * std::bit_ceil(Bits<V>::cols())> rightsChange;
 
-    std::uint8_t rights(const Color&);
+    // The rights bits belonging to one color: 0b0011 for White, 0b1100 for Black.
+    // AND against castleRights[clock] to read a side's, ~it to clear them.
+    std::uint8_t rights(const Color &c) {
+        return std::uint8_t(0b11 << (2 * (White - c)));
+    }
 
     std::array<std::string, 16> castleStrings = 
     {"-", "K", "Q", "KQ",
@@ -82,10 +86,6 @@ class Position {
     [[no_unique_address]] Util::Conditional<Ruleset<V>::Nonrectangle || Ruleset<V>::Petrified,
         Bits<V>> bricks;
 
-    // Position();
-    // Position(const Position&);
-    // equals operator
-
     int pieceAt(const Square&) const;
 
     bool insufficient() const
@@ -94,10 +94,10 @@ class Position {
     Bits<V> isAttacked(const Square&, const Color&) const;
     Bits<V> isChecked(const Color&) const;
 
-    Bits<V> those(const Color&, const int&);
-    Bits<V> any(const int&);
-    Bits<V> side(const Color&);
-    Bits<V> occupied();
+    Bits<V> those(const Color &c, const int &type) const{ return pieces[type] & sides[c]; }
+    Bits<V> any(const int &type) const{ return pieces[type]; }
+    Bits<V> side(const Color &c) const{ return sides[c]; }
+    Bits<V> occupied() const{ return sides[Black] | sides[White]; }
 
     // Sliding-piece groups only mean something where the variant fields them, so
     // these gate on the piece being present in Ruleset<V>'s mapping.

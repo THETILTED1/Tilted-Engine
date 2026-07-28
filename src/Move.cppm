@@ -1,7 +1,7 @@
-export module Tilted.Move;
+export module Move;
 
 import std;
-import Tilted.Consts;
+import Consts;
 
 export namespace Tilted {
 

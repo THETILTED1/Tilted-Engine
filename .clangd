@@ -2,9 +2,9 @@
 CompileFlags:
   CompilationDatabase: build
 ---
-# Bitboard.inl is #included into Tilted.Bitboard.cppm's purview, not compiled
+# Bitboard.inl is #included into `Bitboard.cppm`'s purview, not compiled
 # alone, so standalone it looks all-undefined. Give it C++ flags but suppress the
-# false diagnostics; real errors surface in Tilted.Bitboard.cppm and the build.
+# false diagnostics; real errors surface in `Bitboard.cppm` and the build.
 If:
   PathMatch: .*\.inl
 CompileFlags:

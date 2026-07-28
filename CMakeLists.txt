@@ -19,15 +19,20 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)  # for clangd (see .clangd)
 # `tilted` (tests, a future main) can `import` these -- a PRIVATE set can't.
 add_library(tilted STATIC)
 target_sources(tilted
+  # Module implementation units are ordinary sources, not interface units: they
+  # export nothing, so they stay out of the module file set. CMake's scanner reads
+  # their `module X;` declaration and orders them after the interface.
+  PRIVATE
+    src/Position.cpp
   PUBLIC
     FILE_SET CXX_MODULES FILES
-      src/Tilted.Consts.cppm
-      src/Tilted.Util.cppm
-      src/Tilted.Zobrist.cppm
-      src/Tilted.Bitboard.cppm
-      src/Tilted.Attacks.cppm
-      src/Tilted.Move.cppm
-      src/Tilted.Position.cppm
+      src/Consts.cppm
+      src/Util.cppm
+      src/Zobrist.cppm
+      src/Bitboard.cppm
+      src/Attacks.cppm
+      src/Move.cppm
+      src/Position.cppm
 )
 
 # Build the stdlib as a module so `import std;` resolves (libc++'s std.cppm on clang).

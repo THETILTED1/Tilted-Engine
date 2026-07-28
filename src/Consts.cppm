@@ -1,4 +1,4 @@
-export module Tilted.Consts;
+export module Consts;
 
 import std;
 
@@ -203,8 +203,6 @@ template <Variant V> class Ruleset {
             return PieceIndex<V>(Piece::King);
     }();
 
-    // Board has squares removed beyond its M x N frame (e.g. Cloister's missing
-    // center 2x2), so not every square in the rectangle is playable.
     static constexpr bool Nonrectangle = oneOf({Variant::MiniForest, Variant::BehindTheMirror, Variant::Clobber, Variant::Cloister});
 
     static constexpr bool Regicide = oneOf({Variant::MiniForest, Variant::Duck});
@@ -229,8 +227,9 @@ template <Variant V> class Ruleset {
         Variant::MiniForest, Variant::BehindTheMirror, Variant::Setup, Variant::Tinyhouse, Variant::Jungle,
         Variant::Clobber, Variant::Cloister});
 
-    // Variants the engine can actually play; fill in as each one lands.
-    static constexpr bool Supported = oneOf({});
+    static constexpr bool Supported = oneOf({Variant::Chess, Variant::Antichess, Variant::ThreeCheck,
+        Variant::Horde, Variant::KingOfTheHill, Variant::RacingKings, Variant::Chaturanga,
+        Variant::Paradigm, Variant::MiniForest, Variant::Petrified, Variant::Duck});
 
 };
 

@@ -1,7 +1,7 @@
-export module Tilted.Util;
+export module Util;
 
 import std;
-import Tilted.Consts;
+import Consts;
 
 // Foundation utilities (namespace Tilted::Util)
 

@@ -1,7 +1,7 @@
-export module Tilted.Attacks;
+export module Attacks;
 
 import std;
-export import Tilted.Bitboard;
+export import Bitboard;
 
 export namespace Tilted::Attacks {
 

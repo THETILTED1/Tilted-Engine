@@ -1,6 +1,6 @@
 #pragma once
 // Shared typed-test scaffolding for the Bitboard/Attacks suites. Include it
-// after `import Tilted.Bitboard;` and <gtest/gtest.h>, whose names (Bitboard,
+// after `import Bitboard;` and <gtest/gtest.h>, whose names (Bitboard,
 // Square, testing::Types) it relies on.
 
 // Geometry helper: name squares by (rank, file) without reaching into the class
