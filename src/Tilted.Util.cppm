@@ -38,6 +38,13 @@ export class Random {
     Hash state;
 };
 
-struct Empty{};
+// Stand-in for a member the Ruleset switches off, tagged with the type it
+// replaces so several disabled members stay distinct types and can all overlap.
+export template <typename T> struct Empty{};
+
+// Declare optional members as `[[no_unique_address]] Conditional<cond, T> name;`
+// -- the attribute attaches to the member, so it can't ride along in the alias.
+export template <bool On, typename T>
+using Conditional = std::conditional_t<On, T, Empty<T>>;
 
 } // namespace Tilted::Util

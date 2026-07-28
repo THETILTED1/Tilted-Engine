@@ -32,27 +32,29 @@ inline constexpr std::size_t MAX_FILES = 14;
 inline constexpr std::size_t MAX_IN_HAND = 16;
 inline constexpr std::size_t MAX_DROP_TYPES = 8;
 
-// Standard pieces first, then fairy pieces in ascending order of value.
+inline constexpr std::size_t MAX_HISTORY_LEN = 256;
+
+// Standard pieces first, then fairy pieces -- each group in ascending value order.
 enum class Piece {
-    Pawn,
-    Knight,
-    Bishop,
-    Rook,
-    Queen,
-    King,
-    Alfil,
-    Dabbaba,
-    Ferz,
-    Wazir,
-    Camel,
-    Grasshopper,
-    Horse,
-    Wildebeest,
-    Dragon,
-    General,
-    Archbishop,
-    Chancellor,
-    Amazon,
+    Pawn, // 1
+    Knight, // 3
+    King, // 3 (non royal)
+    Bishop, // 5
+    Rook, // 5
+    Queen, // 9
+    Alfil, // 1
+    Dabbaba, // 1
+    Ferz, // 1
+    Wazir, // 1
+    Horse, // 2
+    Camel, // 3
+    Grasshopper, // 3
+    Wildebeest, // 5
+    General, // 5
+    Dragon, // 7
+    Archbishop, // 7
+    Chancellor, // 7
+    Amazon, // 12
     None,
 };
 
@@ -60,26 +62,26 @@ enum class Variant {
     Chess,
     Atomic,
     Antichess,
-    ThreeCheck,
-    Horde,
+    ThreeCheck, // KvK insufficient
+    Horde, // pawns with no moves = stalemate, no pawns = checkmate
     KingOfTheHill,
-    RacingKings,
+    RacingKings, // taboo, no checks
     Chaturanga,
     Paradigm,
-    MiniForest, // 8x8
-    XXL,
+    MiniForest, // points are shared, pawns promote to F as well, 20 for mate, 
+    XXL, // pawns auto-queen on 8th rank, double push but no enpassant, 3rd from left, 2nd from right castle
     Gothic,
-    BehindTheMirror, // different
-    Setup,
+    BehindTheMirror,
+    Setup, // 39 points, no return to pocket, checks force blocks in setup
     Tinyhouse,
-    Crazyhouse,
-    Seirawan, // droppers
-    Petrified,
-    Spell,
-    Jungle,
+    Crazyhouse, // can place pieces in stalemate
+    Seirawan, // can only place when first piece move
+    Petrified, // sideways pawns, +20 for mate, "the points are shared", pawns aren't affected by petrified?, king can't take, promoted full value
+    Spell, // unsupported
+    Jungle, // pawns promote to EHV, 20 pts for mate, "the points are shared"
     Duck,
     Clobber,
-    Cloister, // etc
+    Cloister, // 6x6 minus center 2x2, Wazirs only, no royal, petrified, stalemate loses, droppable captures
     None
 };
 
@@ -95,38 +97,47 @@ template <Variant V> inline constexpr auto PieceMapping() {
                   V == Variant::BehindTheMirror || V == Variant::Setup ||
                   V == Variant::Crazyhouse || V == Variant::Petrified ||
                   V == Variant::Spell || V == Variant::Duck)
-        return std::to_array({Pawn, Knight, Bishop, Rook, Queen, King});
+        return std::to_array({Pawn, Knight, King, Bishop, Rook, Queen});
 
     else if constexpr (V == Variant::RacingKings)
-        return std::to_array({Knight, Bishop, Rook, Queen, King});
+        return std::to_array({Knight, King, Bishop, Rook, Queen});
 
-    else if constexpr (V == Variant::MiniForest || V == Variant::Jungle)
-        return std::array<Piece, 0>{}; // placeholder
+    else if constexpr (V == Variant::MiniForest)
+        return std::to_array({Pawn, Alfil, Dabbaba, King, Camel, Grasshopper, Bishop});
 
-    else if constexpr (V == Variant::XXL) {
-        return std::to_array({Pawn, Knight, Bishop, Rook, Queen, King, Camel,
-                              General, Archbishop, Chancellor, Amazon});
-    }
+    else if constexpr (V == Variant::XXL)
+        return std::to_array({Pawn, Knight, King, Camel, Bishop, Rook, General,
+                              Archbishop, Chancellor, Queen, Amazon});
 
     else if constexpr (V == Variant::Gothic || V == Variant::Seirawan)
         return std::to_array(
-            {Pawn, Knight, Bishop, Rook, Queen, King, Archbishop, Chancellor});
+            {Pawn, Knight, King, Bishop, Rook, Archbishop, Chancellor, Queen});
 
-    else if constexpr (V == Variant::Tinyhouse) {
-        return std::to_array({Pawn, King, Ferz, Wazir});
-    }
+    else if constexpr (V == Variant::Tinyhouse)
+        return std::to_array({Pawn, Ferz, Wazir, King});
 
-    else if constexpr (V == Variant::Clobber) {
-        return std::to_array({Pawn, Rook, King, Wazir});
-    }
+    else if constexpr (V == Variant::Jungle)
+        return std::to_array({Pawn, Knight, Camel, Grasshopper, Wildebeest, Archbishop, Chancellor});
 
-    else if constexpr (V == Variant::Cloister) {
+    else if constexpr (V == Variant::Clobber)
+        return std::to_array({Pawn, Wazir, King, Rook});
+
+    else if constexpr (V == Variant::Cloister)
         return std::to_array({Wazir});
-    }
 
-    else {
+    else
         std::unreachable();
-    }
+    
+}
+
+// Index of `p` in variant V's canonical piece list, or -1 if the variant
+// doesn't use that piece.
+template <Variant V> inline constexpr int PieceIndex(Piece p) {
+    constexpr auto ps = PieceMapping<V>();
+    for (std::size_t i = 0; i < ps.size(); ++i)
+        if (ps[i] == p)
+            return static_cast<int>(i);
+    return -1;
 }
 
 // Compile-time variant configuration. Each Variant instantiates a distinct
@@ -151,28 +162,30 @@ template <Variant V> class Ruleset {
         std::size_t ranks, cols;
     };
     static constexpr Dims dims = [] {
-        if constexpr (oneOf({Variant::Gothic, Variant::Jungle}))
-            return Dims{8, 10}; // Capablanca-style: 8 ranks, 10 files
-        else if constexpr (oneOf({Variant::XXL, Variant::BehindTheMirror}))
-            return Dims{14, 14}; // TODO: confirm the XXL board
+        if constexpr (oneOf({Variant::XXL, Variant::BehindTheMirror}))
+            return Dims{14, 14};
+        else if constexpr (oneOf({Variant::Gothic, Variant::Jungle}))
+            return Dims{8, 10};
         else if constexpr (V == Variant::Tinyhouse)
             return Dims{4, 4};
+        else if constexpr (V == Variant::Clobber)
+            return Dims{6, 8};
+        else if constexpr (V == Variant::Cloister)
+            return Dims{6, 6};
         else
             return Dims{8, 8};
-
-        // clobber, cloister unknown
     }();
 
-    static constexpr int stalemate = [] {
+    static constexpr int Stalemate = [] {
         if constexpr (oneOf({Variant::Antichess, Variant::Tinyhouse}))
             return 1;
-        else if constexpr (oneOf({Variant::Chaturanga}))
+        else if constexpr (oneOf({Variant::Chaturanga, Variant::Cloister}))
             return -1;
         else
             return 0;
-    }(); // TODO: per-variant stalemate result
+    }();
 
-    static constexpr int checky = [] {
+    static constexpr int Checky = [] {
         if constexpr (V == Variant::ThreeCheck)
             return 3;
         else if constexpr (V == Variant::BehindTheMirror)
@@ -181,23 +194,43 @@ template <Variant V> class Ruleset {
             return 0;
     }();
 
-    static constexpr int royal = [] {
-        return 0; // placeholder
+    static constexpr int Royal = [] {
+        if constexpr (oneOf({Variant::Antichess, Variant::BehindTheMirror, Variant::Cloister}))
+            return -1;
+        else if constexpr (V == Variant::Jungle)
+            return PieceIndex<V>(Piece::Grasshopper);
+        else
+            return PieceIndex<V>(Piece::King);
     }();
 
-    static constexpr bool pocket = oneOf({Variant::Crazyhouse, Variant::Tinyhouse, Variant::Seirawan});
+    // Board has squares removed beyond its M x N frame (e.g. Cloister's missing
+    // center 2x2), so not every square in the rectangle is playable.
+    static constexpr bool Nonrectangle = oneOf({Variant::MiniForest, Variant::BehindTheMirror, Variant::Clobber, Variant::Cloister});
 
-    static constexpr bool petrified = oneOf({Variant::Petrified});
-    // clobber, cloister?
+    static constexpr bool Regicide = oneOf({Variant::MiniForest, Variant::Duck});
 
-    static constexpr bool points = oneOf({Variant::MiniForest, Variant::Petrified});
+    static constexpr bool Compulsory = oneOf({Variant::Antichess, Variant::Clobber});
 
-    static constexpr bool enPassant = !oneOf({Variant::RacingKings, Variant::Chaturanga, Variant::MiniForest,
-        Variant::XXL, Variant::BehindTheMirror, Variant::Tinyhouse, Variant::Jungle, Variant::Clobber, Variant::Cloister});
+    static constexpr bool Pocket = oneOf({Variant::Setup, Variant::Tinyhouse, Variant::Crazyhouse, Variant::Seirawan, Variant::Cloister});
 
-    static constexpr bool castling = !oneOf({Variant::Antichess, Variant::RacingKings, Variant::Chaturanga,
-        Variant::MiniForest, Variant::BehindTheMirror, Variant::Tinyhouse, Variant::Jungle, Variant::Clobber, 
-        Variant::Cloister});
+    static constexpr bool Petrified = oneOf({Variant::Petrified, Variant::Cloister});
+
+    static constexpr bool Points = oneOf({Variant::MiniForest, Variant::Petrified, Variant::Jungle});
+
+    static constexpr bool Hill = oneOf({Variant::KingOfTheHill, Variant::RacingKings, Variant::Clobber});
+
+    static constexpr bool Insufficient = oneOf({Variant::Chess, Variant::Atomic, Variant::ThreeCheck,
+        Variant::Chaturanga, Variant::Paradigm}); // In progress
+
+    static constexpr bool EnPassant = !oneOf({Variant::RacingKings, Variant::Chaturanga, Variant::MiniForest,
+        Variant::Tinyhouse, Variant::Clobber, Variant::Cloister});
+
+    static constexpr bool Castling = !oneOf({Variant::Antichess, Variant::RacingKings, Variant::Chaturanga,
+        Variant::MiniForest, Variant::BehindTheMirror, Variant::Setup, Variant::Tinyhouse, Variant::Jungle,
+        Variant::Clobber, Variant::Cloister});
+
+    // Variants the engine can actually play; fill in as each one lands.
+    static constexpr bool Supported = oneOf({});
 
 };
 
