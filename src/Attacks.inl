@@ -203,7 +203,7 @@ constexpr Bitboard<M, N> PieceAttacks(Square s, const Bitboard<M, N> &occ) {
     else if constexpr (P == Piece::Wildebeest)
         return KnightAttacks<M, N>(s) | CamelAttacks<M, N>(s);
     else if constexpr (P == Piece::Dragon)
-        return BishopAttacks<M, N>(s, occ) | WazirAttacks<M, N>(s);
+        return BishopAttacks<M, N>(s, occ) | HorseAttacks<M, N>(s, occ);
     else if constexpr (P == Piece::General)
         return WazirAttacks<M, N>(s) | FerzAttacks<M, N>(s) |
                KnightAttacks<M, N>(s);

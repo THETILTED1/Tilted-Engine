@@ -50,32 +50,31 @@ class Position {
     std::array<Bits<V>, 2> sides{};
     Color toMove;
 
-    [[no_unique_address]] Util::Conditional<
-        Ruleset<V>::Pocket, Util::Table<std::size_t, 2, Ruleset<V>::types>>
-        pockets;
-    [[no_unique_address]] Util::Conditional<Ruleset<V>::Castling, Castles<V>>
-        castles;
-    [[no_unique_address]] Util::Conditional<
-        Ruleset<V>::EnPassant, std::array<Square, MAX_HISTORY_LEN>> enPassant;
-    [[no_unique_address]] Util::Conditional<Ruleset<V>::Points,
-                                            std::array<std::size_t, 2>> points;
-
     std::array<Hash, MAX_HISTORY_LEN> hashes;
     std::array<int, MAX_HISTORY_LEN> halfMoves;
     std::array<Move<V>, MAX_HISTORY_LEN> plays;
 
     std::size_t clock;
 
-    [[no_unique_address]] Util::Conditional<
-        Ruleset<V>::Petrified || V == Variant::Duck, Bits<V>> bricks;
-    [[no_unique_address]] Util::Conditional<Ruleset<V>::Hill, Bits<V>> hill;
+    [[no_unique_address]] Util::Conditional<Ruleset<V>::Checky != 0,
+                                            std::array<std::size_t, 2>> checks;
     [[no_unique_address]] Util::Conditional<Ruleset<V>::Nonrectangle, Bits<V>>
         wall;
+    [[no_unique_address]] Util::Conditional<
+        Ruleset<V>::Pocket, Util::Table<std::size_t, 2, Ruleset<V>::types>>
+        pockets;
+    [[no_unique_address]] Util::Conditional<
+        Ruleset<V>::Petrified || V == Variant::Duck, Bits<V>> bricks;
+    [[no_unique_address]] Util::Conditional<Ruleset<V>::Points,
+                                            std::array<std::size_t, 2>> points;
+    [[no_unique_address]] Util::Conditional<Ruleset<V>::Hill, Bits<V>> hill;
+    [[no_unique_address]] Util::Conditional<
+        Ruleset<V>::EnPassant, std::array<Square, MAX_HISTORY_LEN>> enPassant;
+    [[no_unique_address]] Util::Conditional<Ruleset<V>::Castling, Castles<V>>
+        castles;
+    [[no_unique_address]] Util::Conditional<V == Variant::Chess, bool> isFRC;
 
     int pieceAt(const Square &) const;
-
-    bool insufficient() const
-        requires(Ruleset<V>::Insufficient);
 
     Bits<V> isAttacked(const Square &, const Color &) const;
     Bits<V> isChecked(const Color &) const;
@@ -90,15 +89,7 @@ class Position {
     Bits<V> rooks() const;
     Bits<V> bishops() const;
 
-    bool onlyPawns() const
-        requires(PieceIndex<V>(Piece::Pawn) >= 0);
-
     int sinceReset() const { return halfMoves[clock]; }
-    int thisPassant() const
-        requires(Ruleset<V>::EnPassant)
-    {
-        return enPassant[clock];
-    }
     Hash thisHash() const { return hashes[clock]; }
     Move<V> lastPlayed() const { return plays[clock]; }
 
@@ -122,7 +113,21 @@ class Position {
     void passMove();
     void unpassMove();
 
-    [[no_unique_address]] Util::Conditional<V == Variant::Chess, bool> isFRC;
+    bool insufficient() const
+        requires(Ruleset<V>::Insufficient);
+
+    int thisPassant() const
+        requires(Ruleset<V>::EnPassant)
+    {
+        return enPassant[clock];
+    }
+
+    bool onlyPawns() const
+        requires(PieceIndex<V>(Piece::Pawn) >= 0);
+
+  private:
+    void place(std::span<const Piece>);
+    void mirror();
 };
 
 } // namespace Tilted

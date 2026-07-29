@@ -157,6 +157,12 @@ BB grasshopperRef(std::size_t r, std::size_t f, const BB &occ) {
     return out;
 }
 
+// Brute-force dragon: bishop slides plus a Xiangqi horse leap, so it is blocked
+// two ways -- by ray blockers and by hobbled legs.
+template <class BB> BB dragonRef(std::size_t r, std::size_t f, const BB &occ) {
+    return bishopRef<BB>(r, f, occ) | horseRef<BB>(r, f, occ);
+}
+
 TYPED_TEST(AttacksTest, Bishop) {
     expectMatches<TypeParam>(
         [](Square s, const TypeParam &o) {
@@ -189,6 +195,16 @@ TYPED_TEST(AttacksTest, Grasshopper) {
         grasshopperRef<TypeParam>);
 }
 
+// Dragon has no standalone generator, so it is only reachable through the
+// dispatch.
+TYPED_TEST(AttacksTest, Dragon) {
+    expectMatches<TypeParam>(
+        [](Square s, const TypeParam &o) {
+            return Tilted::Attacks::PieceAttacks<Tilted::Piece::Dragon>(s, o);
+        },
+        dragonRef<TypeParam>);
+}
+
 // PieceAttacks routes each piece to its primitive/composite; the if-constexpr
 // chain instantiates only the requested branch, so a piece a variant never uses
 // costs it nothing.
@@ -211,6 +227,8 @@ TYPED_TEST(AttacksTest, Dispatch) {
                       (A::BishopAttacks(s, occ) | A::RookAttacks(s, occ)));
             EXPECT_EQ((A::PieceAttacks<Piece::Horse>(s, occ)),
                       A::HorseAttacks(s, occ));
+            EXPECT_EQ((A::PieceAttacks<Piece::Dragon>(s, occ)),
+                      (A::BishopAttacks(s, occ) | A::HorseAttacks(s, occ)));
             EXPECT_EQ((A::PieceAttacks<Piece::Amazon>(s, occ)),
                       (A::BishopAttacks(s, occ) | A::RookAttacks(s, occ) |
                        A::KnightAttacks<G::M, G::N>(s)));

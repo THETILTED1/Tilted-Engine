@@ -55,6 +55,8 @@ enum class Piece {
     None,
 };
 
+inline const std::string PieceChars = "PNKBRQISFWUCGVMDHEA";
+
 enum class Variant {
     Chess,
     Atomic,
@@ -94,41 +96,46 @@ template <Variant V> inline constexpr auto PieceMapping() {
     if constexpr (V == Variant::Chess || V == Variant::Atomic ||
                   V == Variant::Antichess || V == Variant::ThreeCheck ||
                   V == Variant::Horde || V == Variant::KingOfTheHill ||
-                  V == Variant::Chaturanga || V == Variant::Paradigm ||
                   V == Variant::Setup || V == Variant::Crazyhouse ||
                   V == Variant::Petrified || V == Variant::Spell ||
                   V == Variant::Duck)
         return std::to_array({Pawn, Knight, King, Bishop, Rook, Queen});
+
+    else if constexpr (V == Variant::RacingKings)
+        return std::to_array({Knight, King, Bishop, Rook, Queen});
+
+    else if constexpr (V == Variant::Chaturanga)
+        return std::to_array({Pawn, Knight, King, Rook, Alfil, Ferz});
+
+    else if constexpr (V == Variant::Paradigm)
+        return std::to_array({Pawn, Knight, King, Rook, Queen, Dragon});
+
+    else if constexpr (V == Variant::MiniForest)
+        return std::to_array(
+            {Pawn, King, Bishop, Alfil, Dabbaba, Camel, Grasshopper});
+
+    else if constexpr (V == Variant::XXL)
+        return std::to_array({Pawn, Knight, King, Bishop, Rook, Queen, Camel,
+                              General, Archbishop, Chancellor, Amazon});
+
+    else if constexpr (V == Variant::Gothic || V == Variant::Seirawan)
+        return std::to_array(
+            {Pawn, Knight, King, Bishop, Rook, Queen, Archbishop, Chancellor});
 
     // Two King slots: PieceIndex finds the first, so Royal lands on it, and the
     // second is an ordinary capturable king.
     else if constexpr (V == Variant::BehindTheMirror)
         return std::to_array({Pawn, Knight, King, King, Bishop, Rook, Queen});
 
-    else if constexpr (V == Variant::RacingKings)
-        return std::to_array({Knight, King, Bishop, Rook, Queen});
-
-    else if constexpr (V == Variant::MiniForest)
-        return std::to_array(
-            {Pawn, Alfil, Dabbaba, King, Camel, Grasshopper, Bishop});
-
-    else if constexpr (V == Variant::XXL)
-        return std::to_array({Pawn, Knight, King, Camel, Bishop, Rook, General,
-                              Archbishop, Chancellor, Queen, Amazon});
-
-    else if constexpr (V == Variant::Gothic || V == Variant::Seirawan)
-        return std::to_array(
-            {Pawn, Knight, King, Bishop, Rook, Archbishop, Chancellor, Queen});
-
     else if constexpr (V == Variant::Tinyhouse)
-        return std::to_array({Pawn, Ferz, Wazir, King});
+        return std::to_array({Pawn, King, Ferz, Wazir});
 
     else if constexpr (V == Variant::Jungle)
         return std::to_array({Pawn, Knight, Camel, Grasshopper, Wildebeest,
                               Archbishop, Chancellor});
 
     else if constexpr (V == Variant::Clobber)
-        return std::to_array({Pawn, Wazir, King, Rook});
+        return std::to_array({Pawn, King, Rook, Wazir});
 
     else if constexpr (V == Variant::Cloister)
         return std::to_array({Wazir});
