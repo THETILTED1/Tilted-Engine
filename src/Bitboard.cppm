@@ -70,23 +70,26 @@ class Bitboard {
 
     constexpr Bitboard rankMirror() const;
 
+    static constexpr std::size_t innerCols() { return std::bit_ceil(N); }
+
+    static constexpr Square noSquare() { return innerCols() * M; }
+
   private:
     static constexpr std::size_t bits = 8 * sizeof(Word<M * N>);
-    static constexpr std::size_t innerCols = std::bit_ceil(N);
-    static constexpr std::size_t wordCount = (innerCols * M + bits - 1) / bits;
+    static constexpr std::size_t wordCount = (noSquare() + bits - 1) / bits;
 
     static constexpr Bitboard boardMask();
 
     std::array<Word<M * N>, wordCount> data{};
 };
 
-// Human-readable dump; definition in Bitboard.inl, declaration exported here.
+export template <Variant V>
+using Bits = Bitboard<Ruleset<V>::dims.ranks, Ruleset<V>::dims.cols>;
+
 export template <std::size_t M, std::size_t N>
     requires(N <= 64)
 std::ostream &operator<<(std::ostream &os, const Bitboard<M, N> &board);
 
 } // namespace Tilted
 
-// Member/free-function definitions, #included into the purview so they land in
-// the BMI (importers need them reachable for constexpr). Not a standalone TU.
 #include "Bitboard.inl"

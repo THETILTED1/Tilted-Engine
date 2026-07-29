@@ -2,17 +2,13 @@
 
 namespace Tilted::Attacks {
 
-// Build a leaper table by applying `step` to a lone bit on each on-board
-// square. `step` composes the Bitboard direction shifts, which mask at the
-// edges, so entries never wrap or stray into a padding column -- no runtime
-// mask needed.
+// Build a leaper table
 template <std::size_t M, std::size_t N, typename Step>
 constexpr auto makeLeaperTable(Step step) {
-    constexpr std::size_t ic = std::bit_ceil(N);
-    std::array<Bitboard<M, N>, M * ic> table{};
+    std::array<Bitboard<M, N>, Bitboard<M, N>::noSquare()> table{};
     for (std::size_t r = 0; r < M; ++r)
         for (std::size_t f = 0; f < N; ++f) {
-            const Square s = r * ic + f;
+            const Square s = r * Bitboard<M, N>::innerCols() + f;
             table[s] = step(Bitboard<M, N>::squareToBitboard(s));
         }
     return table;
@@ -87,10 +83,8 @@ constexpr Bitboard<M, N> CamelAttacks(Square s) {
 
 template <std::size_t M, std::size_t N>
 constexpr Bitboard<M, N> PawnAttacks(Color c, Square s) {
-    // [color][square]. Under the a8-at-top layout White advances north (toward
-    // the 8th rank), Black south; order matches enum Color { Black, White }.
     static constexpr std::array<
-        std::array<Bitboard<M, N>, M * std::bit_ceil(N)>, 2>
+        std::array<Bitboard<M, N>, M * Bitboard<M, N>::innerCols()>, 2>
         table = {
             makeLeaperTable<M, N>([](const Bitboard<M, N> &b) {
                 return b.southEast() | b.southWest();
@@ -123,19 +117,15 @@ constexpr Bitboard<M, N> BishopAttacks(Square s, const Bitboard<M, N> &occ) {
            lineAttacks(slider, occ, Bitboard<M, N>::antiDiagonalMask(s));
 }
 
-// Rook rank slide from the wide-integer ops alone. East falls out of the
-// subtract trick; west fills from the rook down to the nearest lower blocker
-// (rook - mostBit), with a file-0 sentinel so an open rank slides to the edge.
+// Rook rank slide from the wide-integer ops alone
 template <std::size_t M, std::size_t N>
 constexpr Bitboard<M, N> rankAttacks(Square s, const Bitboard<M, N> &occ) {
-    constexpr std::size_t ic = std::bit_ceil(N);
     const Bitboard<M, N> rank = Bitboard<M, N>::rankMask(s);
     const Bitboard<M, N> r = Bitboard<M, N>::squareToBitboard(s);
     const Bitboard<M, N> one = Bitboard<M, N>::squareToBitboard(0);
     const Bitboard<M, N> o = occ & rank;
     const Bitboard<M, N> east = ((o - (r << 1)) ^ o) & rank;
-    const Bitboard<M, N> fileZero =
-        Bitboard<M, N>::squareToBitboard((s / ic) * ic);
+    const Bitboard<M, N> fileZero = Bitboard<M, N>::fileMask(0) & rank;
     const Bitboard<M, N> below = (o & (r - one)) | fileZero;
     const Bitboard<M, N> west =
         r - Bitboard<M, N>::squareToBitboard(below.mostSquare());
@@ -149,11 +139,7 @@ constexpr Bitboard<M, N> RookAttacks(Square s, const Bitboard<M, N> &occ) {
            rankAttacks(s, occ);
 }
 
-// Horse (Xiangqi knight): a knight hobbled by a piece on its orthogonal leg.
-// Each knight target sits diagonally beyond exactly one leg (a Wazir square),
-// so removing the ferz spread of the occupied legs drops precisely the blocked
-// targets; the legs' inward diagonals land on other Wazir squares and are
-// inert.
+// Horse (Xiangqi knight)
 template <std::size_t M, std::size_t N>
 constexpr Bitboard<M, N> HorseAttacks(Square s, const Bitboard<M, N> &occ) {
     const Bitboard<M, N> legs = WazirAttacks<M, N>(s) & occ;
@@ -162,11 +148,7 @@ constexpr Bitboard<M, N> HorseAttacks(Square s, const Bitboard<M, N> &occ) {
     return KnightAttacks<M, N>(s) & ~blocked;
 }
 
-// Grasshopper: hops over the first piece on each queen line to the square just
-// beyond it. lineAttacks stops at that first blocker, so `& occ` isolates the
-// two hurdles per line; the `above` half-mask picks the far side, and the
-// matching direction operator steps one square past the hurdle (off-board
-// steps and hurdle-less directions vanish under the edge masks / empty sets).
+// Grasshopper
 template <std::size_t M, std::size_t N>
 constexpr Bitboard<M, N> GrasshopperAttacks(Square s,
                                             const Bitboard<M, N> &occ) {
@@ -187,12 +169,7 @@ constexpr Bitboard<M, N> GrasshopperAttacks(Square s,
 // unhandled piece is actually instantiated (not for every handled one).
 template <Piece> constexpr bool unhandledPiece = false;
 
-// Compile-time dispatch. An if-constexpr chain (not a switch) so each
-// instantiation compiles ONLY the requested piece's branch -- e.g.
-// PieceAttacks<King, 4, 4> never pulls in the Amazon/Camel machinery, nor the
-// yet-undefined GrasshopperAttacks. Leapers ignore occ; composites OR the
-// primitives; sliders and the hobbled piece consume occ. Pawns are
-// color-dependent -- see PawnAttacks.
+// Compile-time dispatch. 
 template <Piece P, std::size_t M, std::size_t N>
 constexpr Bitboard<M, N> PieceAttacks(Square s, const Bitboard<M, N> &occ) {
     static_assert(P != Piece::Pawn,

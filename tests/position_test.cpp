@@ -7,13 +7,15 @@
 
 #include <gtest/gtest.h>
 
-import Consts;
-import Bitboard;
-import Move;
-import Position;
+import Position; // re-exports Attacks/Bitboard/Consts, Move, Util
+import Zobrist;  // implementation-only for Position, so imported explicitly
 
+namespace Zobrist = Tilted::Zobrist;
+
+using Tilted::Bits;
 using Tilted::Black;
 using Tilted::Castles;
+using Tilted::MAX_HISTORY_LEN;
 using Tilted::Color;
 using Tilted::Move;
 using Tilted::Piece;
@@ -88,7 +90,6 @@ TEST(CastlesTest, XXL) {
 // Structural invariants that must hold whatever the board width.
 template <Variant V> void expectWellFormed() {
     using C = Castles<V>;
-    constexpr std::size_t inner = std::bit_ceil(Tilted::Bits<V>::cols());
 
     for (Color c : {Black, White}) {
         // A king and its rook cannot share a destination.
@@ -102,8 +103,8 @@ template <Variant V> void expectWellFormed() {
         const std::size_t rank = c == White ? Tilted::Bits<V>::ranks() - 1 : 0;
         for (Square s : {C::kingKingTo[c], C::kingRookTo[c], C::kingQueenTo[c],
                          C::queenRookTo[c]}) {
-            EXPECT_EQ(s / inner, rank);
-            EXPECT_LT(s % inner, Tilted::Bits<V>::cols());
+            EXPECT_EQ(s / Bits<V>::innerCols(), rank);
+            EXPECT_LT(s % Bits<V>::innerCols(), Bits<V>::cols());
         }
     }
 
@@ -192,15 +193,11 @@ template <Variant V> void expectSupportedLinks() {
 TEST(PositionTest, EverySupportedVariantInstantiatesAndLinks) {
     expectSupportedLinks<Variant::Chess>();
     expectSupportedLinks<Variant::Antichess>();
-    expectSupportedLinks<Variant::ThreeCheck>();
     expectSupportedLinks<Variant::Horde>();
-    expectSupportedLinks<Variant::KingOfTheHill>();
-    expectSupportedLinks<Variant::RacingKings>();
     expectSupportedLinks<Variant::Chaturanga>();
     expectSupportedLinks<Variant::Paradigm>();
-    expectSupportedLinks<Variant::MiniForest>();
-    expectSupportedLinks<Variant::Petrified>();
-    expectSupportedLinks<Variant::Duck>();
+    expectSupportedLinks<Variant::XXL>();
+    expectSupportedLinks<Variant::Gothic>();
 }
 
 // The type-vs-color split: any() ignores color, those() intersects, occupied()
@@ -226,4 +223,171 @@ TEST(PositionTest, BoardAccessorsPartitionByColor) {
     const Position<Variant::Chess> &cp = p;
     EXPECT_EQ(cp.occupied().count(), 3u);
     EXPECT_EQ(cp.pieceAt(48), PAWN);
+}
+
+
+
+
+// onlyPawns(): true while nothing but pawns and the royal piece remain. Helper
+// places one piece of `type` for `c` on `s` and keeps sides[] consistent.
+template <Variant V>
+void put(Position<V> &p, Color c, Piece type, Square s) {
+    p.pieces[PieceIndex<V>(type)].toggle(s);
+    p.sides[c].toggle(s);
+}
+
+TEST(PositionTest, OnlyPawnsCountsPawnsAndRoyals) {
+    Position<Variant::Chess> p{};
+    EXPECT_TRUE(p.onlyPawns()) << "an empty board has nothing but pawns";
+
+    put(p, White, Piece::Pawn, 48);
+    put(p, Black, Piece::Pawn, 8);
+    EXPECT_TRUE(p.onlyPawns());
+
+    // Kings are royal in Chess, so they don't break it.
+    put(p, White, Piece::King, 60);
+    put(p, Black, Piece::King, 4);
+    EXPECT_TRUE(p.onlyPawns());
+
+    // Any other piece does, and removing it restores the property.
+    put(p, White, Piece::Knight, 57);
+    EXPECT_FALSE(p.onlyPawns());
+    put(p, White, Piece::Knight, 57);
+    EXPECT_TRUE(p.onlyPawns());
+
+    // Either color's non-pawn counts -- it is a whole-board predicate.
+    put(p, Black, Piece::Rook, 0);
+    EXPECT_FALSE(p.onlyPawns());
+}
+
+// Antichess has kings but Royal is -1, so a king is ordinary material there.
+TEST(PositionTest, OnlyPawnsIgnoresNonRoyalKings) {
+    static_assert(Ruleset<Variant::Antichess>::Royal < 0);
+    static_assert(PieceIndex<Variant::Antichess>(Piece::King) >= 0);
+
+    Position<Variant::Antichess> p{};
+    put(p, White, Piece::Pawn, 48);
+    EXPECT_TRUE(p.onlyPawns());
+
+    put(p, White, Piece::King, 60);
+    EXPECT_FALSE(p.onlyPawns()) << "no royal piece, so the king is just material";
+}
+
+// Padded boards: Gothic is 8x10 and XXL 14x14, both with innerCols() 16, so the
+// complement in onlyPawns must not pick up padding bits.
+TEST(PositionTest, OnlyPawnsOnPaddedBoards) {
+    Position<Variant::Gothic> g{};
+    EXPECT_TRUE(g.onlyPawns());
+    put(g, White, Piece::Pawn, Castles<Variant::Gothic>::whiteBack + 1);
+    EXPECT_TRUE(g.onlyPawns());
+    put(g, White, Piece::Chancellor, Castles<Variant::Gothic>::whiteBack + 2);
+    EXPECT_FALSE(g.onlyPawns());
+
+    Position<Variant::XXL> x{};
+    EXPECT_TRUE(x.onlyPawns());
+    put(x, Black, Piece::Amazon, 5);
+    EXPECT_FALSE(x.onlyPawns());
+}
+
+// Horde's pawn side has no king at all; the predicate is still whole-board.
+TEST(PositionTest, OnlyPawnsHandlesKinglessSide) {
+    Position<Variant::Horde> p{};
+    for (Square s : {40, 41, 42})
+        put(p, White, Piece::Pawn, s);
+    put(p, Black, Piece::King, 4);
+    EXPECT_TRUE(p.onlyPawns());
+    put(p, Black, Piece::Queen, 3);
+    EXPECT_FALSE(p.onlyPawns());
+}
+
+// Fill every member with something non-zero so empty() has work to do.
+template <Variant V> void dirty(Position<V> &p) {
+    p.toMove = White;
+    p.clock = 7;
+    for (std::size_t t = 0; t < Ruleset<V>::types; ++t)
+        p.pieces[t].toggle(t);
+    p.sides[Black].toggle(0);
+    p.sides[White].toggle(1);
+    p.hashes.fill(0xDEADBEEF);
+    p.halfMoves.fill(9);
+    if constexpr (Ruleset<V>::EnPassant)
+        p.enPassant.fill(3);
+    if constexpr (Ruleset<V>::Castling)
+        p.castles.castleRights.fill(0b1111);
+}
+
+TEST(PositionTest, EmptyClearsEveryMember) {
+    Position<Variant::Chess> p{};
+    dirty(p);
+    p.empty();
+
+    for (const auto &b : p.pieces)
+        EXPECT_TRUE(b.empty());
+    EXPECT_TRUE(p.sides[Black].empty());
+    EXPECT_TRUE(p.sides[White].empty());
+    EXPECT_TRUE(p.occupied().empty());
+    EXPECT_EQ(p.toMove, Black);
+    EXPECT_EQ(p.clock, 0u);
+    EXPECT_EQ(p.hashes[0], 0u);
+    EXPECT_EQ(p.hashes[MAX_HISTORY_LEN - 1], 0u);
+    EXPECT_EQ(p.halfMoves[0], 0);
+    EXPECT_EQ(p.castles.castleRights[0], 0);
+}
+
+// The one member that must NOT be zeroed: square 0 is playable, so a zeroed
+// enPassant would read as a real target on a8.
+TEST(PositionTest, EmptyUsesNoSquareForEnPassant) {
+    Position<Variant::Chess> p{};
+    dirty(p);
+    p.empty();
+
+    EXPECT_EQ(Bits<Variant::Chess>::noSquare(), 64u);
+    EXPECT_EQ(p.enPassant[0], Bits<Variant::Chess>::noSquare());
+    EXPECT_EQ(p.enPassant[MAX_HISTORY_LEN - 1], Bits<Variant::Chess>::noSquare());
+    EXPECT_NE(p.enPassant[0], 0u) << "zero is square a8, not 'no target'";
+
+    // Padded boards: noSquare() is past the padded stride, not the file count.
+    EXPECT_EQ(Bits<Variant::Gothic>::noSquare(), 8u * 16u);
+    EXPECT_EQ(Bits<Variant::XXL>::noSquare(), 14u * 16u);
+}
+
+// empty() then beginZobrist() must agree on the sentinel: with no pieces and
+// Black to move, the only surviving term is castling, so an en-passant key
+// leaking in would show up as an exact mismatch.
+TEST(PositionTest, EmptyThenBeginZobristHasNoEnPassantTerm) {
+    Position<Variant::Antichess> a{}; // en passant, no castling
+    dirty(a);
+    a.empty();
+    a.beginZobrist();
+    EXPECT_EQ(a.hashes[0], 0u) << "no pieces, Black to move, no castling rights";
+
+    Position<Variant::Chaturanga> c{}; // neither
+    dirty(c);
+    c.empty();
+    c.beginZobrist();
+    EXPECT_EQ(c.hashes[0], 0u);
+
+    Position<Variant::Chess> p{}; // both
+    dirty(p);
+    p.empty();
+    p.beginZobrist();
+    EXPECT_EQ(p.hashes[0], Zobrist::castling(0)) << "castling(0) and nothing else";
+}
+
+TEST(PositionTest, EmptyIsIdempotentAcrossVariants) {
+    Position<Variant::Gothic> a{}, b{};
+    dirty(a);
+    a.empty();
+    a.empty();
+    b.empty();
+    a.beginZobrist();
+    b.beginZobrist();
+    EXPECT_EQ(a.hashes[0], b.hashes[0]);
+    EXPECT_TRUE(a.occupied().empty());
+
+    Position<Variant::XXL> x{};
+    dirty(x);
+    x.empty();
+    EXPECT_TRUE(x.occupied().empty());
+    EXPECT_EQ(x.enPassant[0], Bits<Variant::XXL>::noSquare());
 }

@@ -1,7 +1,8 @@
 export module Move;
 
 import std;
-import Consts;
+export import Consts;
+import Bitboard;
 
 export namespace Tilted {
 
@@ -11,8 +12,8 @@ template <Variant V> class Move {
 
     static constexpr std::size_t pieceWidth =
         std::bit_width(Ruleset<V>::types - 1);
-    static constexpr std::size_t squareWidth = std::bit_width(
-        Ruleset<V>::dims.ranks * std::bit_ceil(Ruleset<V>::dims.cols) - 1);
+    static constexpr std::size_t squareWidth =
+        std::bit_width(Bits<V>::noSquare() - 1);
 
     static constexpr std::size_t fromOffset = 0;
     static constexpr std::size_t toOffset = squareWidth;
@@ -22,14 +23,15 @@ template <Variant V> class Move {
     static constexpr std::size_t flagOffset = endingOffset + pieceWidth;
 
     Move() = default;
+    constexpr explicit Move(std::uint32_t bits) : data(bits) {}
 
-    // Bit index to algebraic. Bit 0 is a8, so the rank counts down from the top.
-    // Digits are emitted by hand: std::to_string isn't constexpr, and boards up to
-    // MAX_RANKS need two of them.
+    static constexpr Move null() { return {}; }
+    static constexpr Move invalid() { return Move{~std::uint32_t(0)}; }
+
     static constexpr std::string algebraic(Square s) {
-        constexpr std::size_t innerCols = std::bit_ceil(Ruleset<V>::dims.cols);
-        const std::size_t rank = Ruleset<V>::dims.ranks - s / innerCols;
-        std::string out(1, static_cast<char>('a' + s % innerCols));
+        const std::size_t rank = Bits<V>::ranks() - s / Bits<V>::innerCols();
+        std::string out(1,
+                        static_cast<char>('a' + s % Bits<V>::innerCols()));
         if (rank >= 10)
             out += static_cast<char>('0' + rank / 10);
         out += static_cast<char>('0' + rank % 10);

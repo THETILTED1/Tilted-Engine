@@ -8,7 +8,7 @@
 template <class BB> struct Geo {
     static constexpr std::size_t M = BB::ranks();
     static constexpr std::size_t N = BB::cols();
-    static constexpr std::size_t IC = std::bit_ceil(N);
+    static constexpr std::size_t IC = BB::innerCols();
     static constexpr std::size_t bitSpan = IC * M; // one past the last bit
     static constexpr Tilted::Square bitOf(std::size_t r, std::size_t f) {
         return r * IC + f;

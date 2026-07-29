@@ -5,7 +5,7 @@ namespace Tilted {
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
 constexpr Square Bitboard<M, N>::flipRank(Square s) {
-    return ((M - 1) - s / innerCols) * innerCols + s % innerCols;
+    return ((M - 1) - s / innerCols()) * innerCols() + s % innerCols();
 }
 
 template <std::size_t M, std::size_t N>
@@ -28,9 +28,7 @@ constexpr Bitboard<M, N> Bitboard<M, N>::squareToBitboard(Square s) {
     return result;
 }
 
-// Line masks keyed by any square on the line; the line index is derived
-// internally. Member functions wrap a function-local static constexpr table (a
-// std::array<Bitboard> data member can't work -- incomplete type in-class).
+// Line masks keyed by any square on the line
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
 constexpr Bitboard<M, N> Bitboard<M, N>::fileMask(Square s) {
@@ -38,10 +36,10 @@ constexpr Bitboard<M, N> Bitboard<M, N>::fileMask(Square s) {
         std::array<Bitboard, N> m{};
         for (std::size_t ff = 0; ff < N; ++ff)
             for (std::size_t r = 0; r < M; ++r)
-                m[ff] |= squareToBitboard(r * innerCols + ff);
+                m[ff] |= squareToBitboard(r * innerCols() + ff);
         return m;
     }();
-    return masks[s % innerCols];
+    return masks[s % innerCols()];
 }
 
 template <std::size_t M, std::size_t N>
@@ -51,10 +49,10 @@ constexpr Bitboard<M, N> Bitboard<M, N>::rankMask(Square s) {
         std::array<Bitboard, M> m{};
         for (std::size_t rr = 0; rr < M; ++rr)
             for (std::size_t f = 0; f < N; ++f)
-                m[rr] |= squareToBitboard(rr * innerCols + f);
+                m[rr] |= squareToBitboard(rr * innerCols() + f);
         return m;
     }();
-    return masks[s / innerCols];
+    return masks[s / innerCols()];
 }
 
 // Diagonal (a1-h8 "/", along northEast/southWest): squares share r + f.
@@ -66,10 +64,10 @@ constexpr Bitboard<M, N> Bitboard<M, N>::diagonalMask(Square s) {
         std::array<Bitboard, M + N - 1> m{};
         for (std::size_t r = 0; r < M; ++r)
             for (std::size_t f = 0; f < N; ++f)
-                m[r + f] |= squareToBitboard(r * innerCols + f);
+                m[r + f] |= squareToBitboard(r * innerCols() + f);
         return m;
     }();
-    return masks[s / innerCols + s % innerCols];
+    return masks[s / innerCols() + s % innerCols()];
 }
 
 template <std::size_t M, std::size_t N>
@@ -79,21 +77,19 @@ constexpr Bitboard<M, N> Bitboard<M, N>::antiDiagonalMask(Square s) {
         std::array<Bitboard, M + N - 1> m{};
         for (std::size_t r = 0; r < M; ++r)
             for (std::size_t f = 0; f < N; ++f)
-                m[r + (N - 1) - f] |= squareToBitboard(r * innerCols + f);
+                m[r + (N - 1) - f] |= squareToBitboard(r * innerCols() + f);
         return m;
     }();
-    return masks[s / innerCols + (N - 1) - s % innerCols];
+    return masks[s / innerCols() + (N - 1) - s % innerCols()];
 }
 
 // Open segment between two aligned squares (both endpoints excluded); empty if
-// a and b share no rank, file, or diagonal. The shared line is monotonic in bit
-// index, so its squares strictly between a's and b's bits are exactly the
-// segment. Basis for check-blocking and pin detection.
+// a and b share no rank, file, or diagonal.
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
 constexpr Bitboard<M, N> Bitboard<M, N>::between(Square a, Square b) {
-    const std::size_t ra = a / innerCols, fa = a % innerCols;
-    const std::size_t rb = b / innerCols, fb = b % innerCols;
+    const std::size_t ra = a / innerCols(), fa = a % innerCols();
+    const std::size_t rb = b / innerCols(), fb = b % innerCols();
     Bitboard line;
     if (ra == rb)
         line = rankMask(a);
@@ -120,7 +116,7 @@ constexpr Bitboard<M, N> Bitboard<M, N>::boardMask() {
         Bitboard m{};
         for (std::size_t r = 0; r < M; ++r)
             for (std::size_t f = 0; f < N; ++f)
-                m |= squareToBitboard(r * innerCols + f);
+                m |= squareToBitboard(r * innerCols() + f);
         return m;
     }();
     return mask;
@@ -134,7 +130,7 @@ constexpr Square Bitboard<M, N>::squareToBit(Square s) {
     static constexpr std::array<Square, M * N> table = [] {
         std::array<Square, M * N> t{};
         for (std::size_t d = 0; d < M * N; ++d)
-            t[d] = (d / N) * innerCols + d % N;
+            t[d] = (d / N) * innerCols() + d % N;
         return t;
     }();
     return table[s];
@@ -143,10 +139,10 @@ constexpr Square Bitboard<M, N>::squareToBit(Square s) {
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
 constexpr Square Bitboard<M, N>::bitToSquare(Square b) {
-    static constexpr std::array<Square, innerCols * M> table = [] {
-        std::array<Square, innerCols * M> t{};
+    static constexpr std::array<Square, innerCols() * M> table = [] {
+        std::array<Square, innerCols() * M> t{};
         for (std::size_t d = 0; d < M * N; ++d)
-            t[(d / N) * innerCols + d % N] = d;
+            t[(d / N) * innerCols() + d % N] = d;
         return t;
     }();
     return table[b];
@@ -161,7 +157,7 @@ constexpr bool Bitboard<M, N>::operator==(const Bitboard &other) const {
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
 constexpr bool Bitboard<M, N>::empty() const {
-    for (Word<M *N> word : data)
+    for (Word<M * N> word : data)
         if (word)
             return false;
     return true;
@@ -183,7 +179,7 @@ template <std::size_t M, std::size_t N>
     requires(N <= 64)
 constexpr std::size_t Bitboard<M, N>::count() const {
     std::size_t total = 0;
-    for (Word<M *N> word : data)
+    for (Word<M * N> word : data)
         total += std::popcount(word);
     return total;
 }
@@ -194,7 +190,7 @@ constexpr Square Bitboard<M, N>::leastSquare() const {
     for (std::size_t i = 0; i < wordCount; ++i)
         if (data[i])
             return i * bits + std::countr_zero(data[i]);
-    return innerCols * M;
+    return noSquare();
 }
 
 template <std::size_t M, std::size_t N>
@@ -203,7 +199,7 @@ constexpr Square Bitboard<M, N>::mostSquare() const {
     for (std::size_t i = wordCount; i-- > 0;)
         if (data[i])
             return i * bits + (bits - 1 - std::countl_zero(data[i]));
-    return innerCols * M;
+    return noSquare();
 }
 
 template <std::size_t M, std::size_t N>
@@ -215,7 +211,7 @@ constexpr Square Bitboard<M, N>::popLeastSquare() {
             data[i] &= Word<M * N>(data[i] - 1);
             return b;
         }
-    return innerCols * M;
+    return noSquare();
 }
 
 template <std::size_t M, std::size_t N>
@@ -384,13 +380,13 @@ constexpr Bitboard<M, N> Bitboard<M, N>::operator>>(Square shift) const {
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
 constexpr Bitboard<M, N> Bitboard<M, N>::north() const {
-    return *this >> innerCols;
+    return *this >> innerCols();
 }
 
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
 constexpr Bitboard<M, N> Bitboard<M, N>::south() const {
-    return (*this << innerCols) & boardMask();
+    return (*this << innerCols()) & boardMask();
 }
 
 template <std::size_t M, std::size_t N>
@@ -434,8 +430,8 @@ constexpr Bitboard<M, N> Bitboard<M, N>::southWest() const {
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
 constexpr Bitboard<M, N> Bitboard<M, N>::rankMirror() const {
-    constexpr std::size_t ranksPerWord = bits / innerCols;
-    constexpr std::size_t trailing = wordCount * bits - innerCols * M;
+    constexpr std::size_t ranksPerWord = bits / innerCols();
+    constexpr std::size_t trailing = wordCount * bits - innerCols() * M;
     Bitboard reversed;
     for (std::size_t i = 0; i < wordCount; ++i) {
         const Word<M * N> w = data[wordCount - 1 - i];
@@ -443,12 +439,12 @@ constexpr Bitboard<M, N> Bitboard<M, N>::rankMirror() const {
             reversed.data[i] = w;
         else {
             constexpr Word<M * N> lane =
-                Word<M * N>((Word<M * N>(1) << innerCols) - 1);
+                Word<M * N>((Word<M * N>(1) << innerCols()) - 1);
             Word<M * N> out{};
             for (std::size_t k = 0; k < ranksPerWord; ++k)
                 out = Word<M * N>(
-                    out | Word<M * N>(Word<M * N>((w >> (k * innerCols)) & lane)
-                                      << ((ranksPerWord - 1 - k) * innerCols)));
+                    out | Word<M * N>(Word<M * N>((w >> (k * innerCols())) & lane)
+                                      << ((ranksPerWord - 1 - k) * innerCols())));
             reversed.data[i] = out;
         }
     }
@@ -461,10 +457,9 @@ constexpr Bitboard<M, N> Bitboard<M, N>::rankMirror() const {
 template <std::size_t M, std::size_t N>
     requires(N <= 64)
 std::ostream &operator<<(std::ostream &os, const Bitboard<M, N> &board) {
-    constexpr std::size_t ic = std::bit_ceil(N);
     for (std::size_t r = 0; r < M; ++r) {
         for (std::size_t f = 0; f < N; ++f)
-            os << (board.test(r * ic + f) ? '1' : '.');
+            os << (board.test(r * Bitboard<M, N>::innerCols() + f) ? '1' : '.');
         os << '\n';
     }
     return os;

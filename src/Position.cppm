@@ -1,28 +1,21 @@
 export module Position;
 
 import std;
-import Attacks; // transitively re-exports Bitboard + Consts
-import Move;
-import Util;
-import Zobrist;
+export import Attacks; 
+export import Move;
+export import Util;
 
 export namespace Tilted {
 
-template <Variant V> using Bits = Bitboard<Ruleset<V>::dims.ranks, Ruleset<V>::dims.cols>;
-
-template <Variant V> struct Castles{
-    std::array<std::uint8_t, MAX_HISTORY_LEN> castleRights; // last 4 bits q k Q K
+template <Variant V> struct Castles {
+    std::array<std::uint8_t, MAX_HISTORY_LEN>
+        castleRights; // last 4 bits q k Q K
 
     std::array<Square, 2> kingRookFrom, queenRookFrom;
 
-    // Bit 0 is a8, so Black castles on rank 0 and its destinations are bare
-    // files; White's are those files on the last rank. Indexed by Color.
     static constexpr Square whiteBack =
-        (Bits<V>::ranks() - 1) * std::bit_ceil(Bits<V>::cols());
+        (Bits<V>::ranks() - 1) * Bits<V>::innerCols();
 
-    // King-side lands the king 2nd from the right edge with the rook just inside
-    // it, queen-side the 3rd and 4th from the left. Taken relative to width that
-    // is 8x8's g1/f1 and c1/d1, and also Gothic's i1/h1 and XXL's m1/l1.
     static constexpr std::array<Square, 2> kingRookTo{
         Bits<V>::cols() - 3, whiteBack + Bits<V>::cols() - 3};
     static constexpr std::array<Square, 2> queenRookTo{3, whiteBack + 3};
@@ -36,26 +29,20 @@ template <Variant V> struct Castles{
     std::array<Bits<V>, 2> kingOccMask;
     std::array<Bits<V>, 2> queenOccMask;
 
-    std::array<std::uint8_t, Bits<V>::ranks() * std::bit_ceil(Bits<V>::cols())> rightsChange;
+    std::array<std::uint8_t, Bits<V>::noSquare()>
+        rightsChange;
 
-    // The rights bits belonging to one color: 0b0011 for White, 0b1100 for Black.
-    // AND against castleRights[clock] to read a side's, ~it to clear them.
     std::uint8_t rights(const Color &c) {
         return std::uint8_t(0b11 << (2 * (White - c)));
     }
 
-    std::array<std::string, 16> castleStrings = 
-    {"-", "K", "Q", "KQ",
-    "k", "Kk", "Qk", "KQk",
-    "q", "Kq", "Qq", "KQq",
-    "kq", "Kkq", "Qkq", "KQkq"};
+    std::array<std::string, 16> castleStrings = {
+        "-", "K",  "Q",  "KQ",  "k",  "Kk",  "Qk",  "KQk",
+        "q", "Kq", "Qq", "KQq", "kq", "Kkq", "Qkq", "KQkq"};
 };
 
-// Full game state for a variant. Board geometry, piece set, and which optional
-// state even exists (castling, en passant, pockets, ...) all come from
-// Ruleset<V>, so each variant instantiates a distinct, minimally-sized Position.
-template <Variant V> 
-    requires (Ruleset<V>::Supported)
+template <Variant V>
+    requires(Ruleset<V>::Supported)
 class Position {
   public:
     Position() = default;
@@ -64,13 +51,15 @@ class Position {
     std::array<Bits<V>, 2> sides{};
     Color toMove;
 
-    [[no_unique_address]] Util::Conditional<Ruleset<V>::Pocket,
-        Util::Table<std::size_t, 2, Ruleset<V>::types>> pockets;
-    [[no_unique_address]] Util::Conditional<Ruleset<V>::Castling, Castles<V>> castles;
-    [[no_unique_address]] Util::Conditional<Ruleset<V>::EnPassant,
-        std::array<Square, MAX_HISTORY_LEN>> enPassant;
+    [[no_unique_address]] Util::Conditional<
+        Ruleset<V>::Pocket, Util::Table<std::size_t, 2, Ruleset<V>::types>>
+        pockets;
+    [[no_unique_address]] Util::Conditional<Ruleset<V>::Castling, Castles<V>>
+        castles;
+    [[no_unique_address]] Util::Conditional<
+        Ruleset<V>::EnPassant, std::array<Square, MAX_HISTORY_LEN>> enPassant;
     [[no_unique_address]] Util::Conditional<Ruleset<V>::Points,
-        std::array<std::size_t, 2>> points;
+                                            std::array<std::size_t, 2>> points;
 
     std::array<Hash, MAX_HISTORY_LEN> hashes;
     std::array<int, MAX_HISTORY_LEN> halfMoves;
@@ -78,44 +67,40 @@ class Position {
 
     std::size_t clock;
 
-    // Duck has no Ruleset flag of its own; Move<V>::duck() gates the same way.
     [[no_unique_address]] Util::Conditional<V == Variant::Duck, Bits<V>> duck;
     [[no_unique_address]] Util::Conditional<Ruleset<V>::Hill, Bits<V>> hill;
-    // Bricks are both the squares cut out of a non-rectangular board and the ones
-    // a petrified capture leaves behind, so either rule needs the mask.
-    [[no_unique_address]] Util::Conditional<Ruleset<V>::Nonrectangle || Ruleset<V>::Petrified,
-        Bits<V>> bricks;
+    [[no_unique_address]] Util::Conditional<
+        Ruleset<V>::Nonrectangle || Ruleset<V>::Petrified, Bits<V>> bricks;
 
-    int pieceAt(const Square&) const;
+    int pieceAt(const Square &) const;
 
     bool insufficient() const
         requires(Ruleset<V>::Insufficient);
 
-    Bits<V> isAttacked(const Square&, const Color&) const;
-    Bits<V> isChecked(const Color&) const;
+    Bits<V> isAttacked(const Square &, const Color &) const;
+    Bits<V> isChecked(const Color &) const;
 
-    Bits<V> those(const Color &c, const int &type) const{ return pieces[type] & sides[c]; }
-    Bits<V> any(const int &type) const{ return pieces[type]; }
-    Bits<V> side(const Color &c) const{ return sides[c]; }
-    Bits<V> occupied() const{ return sides[Black] | sides[White]; }
+    Bits<V> those(const Color &c, const int &type) const {
+        return pieces[type] & sides[c];
+    }
+    Bits<V> any(const int &type) const { return pieces[type]; }
+    Bits<V> side(const Color &c) const { return sides[c]; }
+    Bits<V> occupied() const { return sides[Black] | sides[White]; }
 
-    // Sliding-piece groups only mean something where the variant fields them, so
-    // these gate on the piece being present in Ruleset<V>'s mapping.
-    Bits<V> rooks()
-        requires(PieceIndex<V>(Piece::Rook) >= 0);
-    Bits<V> bishops()
-        requires(PieceIndex<V>(Piece::Bishop) >= 0);
+    Bits<V> rooks() const;
+    Bits<V> bishops() const;
 
     bool onlyPawns() const
         requires(PieceIndex<V>(Piece::Pawn) >= 0);
 
-
-    int sinceReset() const{ return halfMoves[clock]; }
+    int sinceReset() const { return halfMoves[clock]; }
     int thisPassant() const
         requires(Ruleset<V>::EnPassant)
-    { return enPassant[clock]; }
-    Hash thisHash() const{ return hashes[clock]; }
-    Move<V> lastPlayed() const{ return plays[clock]; }
+    {
+        return enPassant[clock];
+    }
+    Hash thisHash() const { return hashes[clock]; }
+    Move<V> lastPlayed() const { return plays[clock]; }
 
     // void readFen(std::string);
     // std::string makeFen() const;
@@ -131,15 +116,13 @@ class Position {
 
     // void forget();
 
-    void makeMove(const Move<V>&);
+    void makeMove(const Move<V> &);
     void unmakeMove();
 
     void passMove();
     void unpassMove();
 
-    // Shuffled back ranks are a standard-chess option only.
     [[no_unique_address]] Util::Conditional<V == Variant::Chess, bool> isFRC;
-
 };
 
 } // namespace Tilted

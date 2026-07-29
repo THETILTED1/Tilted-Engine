@@ -7,8 +7,7 @@
 
 #include <gtest/gtest.h>
 
-import Bitboard;
-import Attacks;
+import Attacks; // re-exports Bitboard + Consts
 import Util;
 
 using Tilted::Bitboard;

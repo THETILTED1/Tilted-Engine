@@ -1,35 +1,23 @@
 export module Zobrist;
 
 import std;
-import Consts;
+export import Consts;
+import Bitboard; 
 import Util;
 
 namespace Tilted::Zobrist {
 
 constexpr Hash SEED = 0xD1B54A32D192ED03;
 
-// Padded square count and total key count of a variant, from its Ruleset.
+// Bits<V>::noSquare() is one past the last bit, so it is exactly the padded square
+// count -- the row stride for a variant's slice of the piece table.
 template <Variant V>
-constexpr std::size_t squares =
-    Ruleset<V>::dims.ranks * std::bit_ceil(Ruleset<V>::dims.cols);
+constexpr std::size_t footprint = Ruleset<V>::types * Bits<V>::noSquare();
 
-template <Variant V>
-constexpr std::size_t footprint = Ruleset<V>::types * squares<V>;
-
-// None sits just past the real variants, so its ordinal is exactly their count.
-constexpr std::size_t VARIANTS = static_cast<std::size_t>(Variant::None);
-
-// Each variant's footprint. This can't be a loop: footprint<V> selects the
-// Ruleset<V> template, whose argument must be a constant, so the variants are
-// reached through a compile-time pack instead of a runtime counter.
 constexpr auto footprints = []<std::size_t... V>(std::index_sequence<V...>) {
     return std::array{footprint<static_cast<Variant>(V)>...};
 }(std::make_index_sequence<VARIANTS>{});
 
-// Flat piece table size: the largest footprint over every variant, not
-// maxTypes*maxSquares, so nothing is wasted when the board and piece maxima
-// live in different variants. Rows pack as [type * squares<V> + square] /
-// color.
 constexpr std::size_t MAX_KEYS = [] {
     std::size_t max = 0;
     for (std::size_t f : footprints)
@@ -37,8 +25,6 @@ constexpr std::size_t MAX_KEYS = [] {
     return max;
 }();
 
-// Each group has its own compile-time stream, seeds nudged apart so they stay
-// disjoint; the turn key is a lone toggle, so just a fixed constant.
 constexpr auto pieceKeys = [] {
     std::array<std::array<Hash, MAX_KEYS>, 2> table{};
     Util::Random rng{SEED};
@@ -76,11 +62,9 @@ constexpr auto pocketKeys = [] {
 
 constexpr Hash turnKey = 0xC1A5537E2D9B4E86;
 
-// Key for a piece `type` (dense PieceMapping index) of `color` on `square`.
-// Templated on the variant so the row stride is a compile-time constant.
 export template <Variant V>
 constexpr Hash piece(Color color, std::size_t type, Square square) {
-    return pieceKeys[color][type * squares<V> + square];
+    return pieceKeys[color][type * Bits<V>::noSquare() + square];
 }
 
 // Key for a castling-rights mask (0..15).
