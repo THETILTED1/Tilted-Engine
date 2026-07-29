@@ -1,7 +1,7 @@
 export module Position;
 
 import std;
-export import Attacks; 
+export import Attacks;
 export import Move;
 export import Util;
 
@@ -29,8 +29,7 @@ template <Variant V> struct Castles {
     std::array<Bits<V>, 2> kingOccMask;
     std::array<Bits<V>, 2> queenOccMask;
 
-    std::array<std::uint8_t, Bits<V>::noSquare()>
-        rightsChange;
+    std::array<std::uint8_t, Bits<V>::noSquare()> rightsChange;
 
     std::uint8_t rights(const Color &c) {
         return std::uint8_t(0b11 << (2 * (White - c)));
@@ -67,10 +66,11 @@ class Position {
 
     std::size_t clock;
 
-    [[no_unique_address]] Util::Conditional<V == Variant::Duck, Bits<V>> duck;
-    [[no_unique_address]] Util::Conditional<Ruleset<V>::Hill, Bits<V>> hill;
     [[no_unique_address]] Util::Conditional<
-        Ruleset<V>::Nonrectangle || Ruleset<V>::Petrified, Bits<V>> bricks;
+        Ruleset<V>::Petrified || V == Variant::Duck, Bits<V>> bricks;
+    [[no_unique_address]] Util::Conditional<Ruleset<V>::Hill, Bits<V>> hill;
+    [[no_unique_address]] Util::Conditional<Ruleset<V>::Nonrectangle, Bits<V>>
+        wall;
 
     int pieceAt(const Square &) const;
 

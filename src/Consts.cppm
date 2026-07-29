@@ -241,8 +241,9 @@ template <Variant V> class Ruleset {
                 Variant::Cloister});
 
     static constexpr bool Supported =
-        oneOf({Variant::Chess, Variant::Antichess, Variant::Horde, Variant::Chaturanga,
-               Variant::Paradigm, Variant::XXL, Variant::Gothic});
+        oneOf({Variant::Chess, Variant::Antichess, Variant::Horde,
+               Variant::Chaturanga, Variant::Paradigm, Variant::XXL,
+               Variant::Gothic});
 };
 
 } // namespace Tilted

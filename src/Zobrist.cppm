@@ -2,15 +2,15 @@ export module Zobrist;
 
 import std;
 export import Consts;
-import Bitboard; 
+import Bitboard;
 import Util;
 
 namespace Tilted::Zobrist {
 
 constexpr Hash SEED = 0xD1B54A32D192ED03;
 
-// Bits<V>::noSquare() is one past the last bit, so it is exactly the padded square
-// count -- the row stride for a variant's slice of the piece table.
+// Bits<V>::noSquare() is one past the last bit, so it is exactly the padded
+// square count -- the row stride for a variant's slice of the piece table.
 template <Variant V>
 constexpr std::size_t footprint = Ruleset<V>::types * Bits<V>::noSquare();
 
@@ -60,6 +60,14 @@ constexpr auto pocketKeys = [] {
     return table;
 }();
 
+constexpr auto brickKeys = [] {
+    std::array<Hash, MAX_RANKS * std::bit_ceil(MAX_FILES)> table{};
+    Util::Random rng{SEED + 4};
+    for (auto &k : table)
+        k = rng();
+    return table;
+}();
+
 constexpr Hash turnKey = 0xC1A5537E2D9B4E86;
 
 export template <Variant V>
@@ -81,6 +89,8 @@ export constexpr Hash enPassant(std::size_t file) {
 export constexpr Hash pocket(Color color, std::size_t type, std::size_t count) {
     return pocketKeys[color][type][count];
 }
+
+export constexpr Hash brick(Square square) { return brickKeys[square]; }
 
 // Key toggled when the side to move flips.
 export constexpr Hash turn() { return turnKey; }

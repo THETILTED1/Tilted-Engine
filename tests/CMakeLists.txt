@@ -24,10 +24,16 @@ add_executable(position_test EXCLUDE_FROM_ALL position_test.cpp)
 set_target_properties(position_test PROPERTIES CXX_MODULE_STD ON)
 target_link_libraries(position_test PRIVATE tilted GTest::gtest_main)
 
+add_executable(move_test EXCLUDE_FROM_ALL move_test.cpp)
+set_target_properties(move_test PROPERTIES CXX_MODULE_STD ON)
+target_link_libraries(move_test PRIVATE tilted GTest::gtest_main)
+
 # Aggregate so `make test` can build every suite with one target.
-add_custom_target(unit_tests DEPENDS bitboard_test attacks_test position_test)
+add_custom_target(unit_tests DEPENDS bitboard_test attacks_test position_test
+                                     move_test)
 
 include(GoogleTest)
 gtest_discover_tests(bitboard_test)
 gtest_discover_tests(attacks_test)
 gtest_discover_tests(position_test)
+gtest_discover_tests(move_test)

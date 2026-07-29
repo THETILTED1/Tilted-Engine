@@ -169,7 +169,7 @@ constexpr Bitboard<M, N> GrasshopperAttacks(Square s,
 // unhandled piece is actually instantiated (not for every handled one).
 template <Piece> constexpr bool unhandledPiece = false;
 
-// Compile-time dispatch. 
+// Compile-time dispatch.
 template <Piece P, std::size_t M, std::size_t N>
 constexpr Bitboard<M, N> PieceAttacks(Square s, const Bitboard<M, N> &occ) {
     static_assert(P != Piece::Pawn,

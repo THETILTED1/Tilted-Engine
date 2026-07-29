@@ -41,7 +41,8 @@ template <Variant V>
     requires(Ruleset<V>::Supported)
 Bits<V> Position<V>::rooks() const {
     Bits<V> result{};
-    for (Piece p : {Piece::Rook, Piece::Queen, Piece::Chancellor, Piece::Amazon})
+    for (Piece p :
+         {Piece::Rook, Piece::Queen, Piece::Chancellor, Piece::Amazon})
         if (const int x = PieceIndex<V>(p); x >= 0)
             result |= pieces[x];
     return result;
@@ -51,8 +52,8 @@ template <Variant V>
     requires(Ruleset<V>::Supported)
 Bits<V> Position<V>::bishops() const {
     Bits<V> result{};
-    for (Piece p : {Piece::Bishop, Piece::Queen, Piece::Dragon, Piece::Archbishop,
-                    Piece::Amazon})
+    for (Piece p : {Piece::Bishop, Piece::Queen, Piece::Dragon,
+                    Piece::Archbishop, Piece::Amazon})
         if (const int x = PieceIndex<V>(p); x >= 0)
             result |= pieces[x];
     return result;
@@ -88,9 +89,9 @@ void Position<V>::empty() {
     plays = {};
     clock = 0;
 
-    duck = {};
-    hill = {};
     bricks = {};
+    hill = {};
+    wall = {};
 
     isFRC = {};
 }
