@@ -466,4 +466,39 @@ std::ostream &operator<<(std::ostream &os, const Bitboard<M, N> &board) {
     return os;
 }
 
+template <std::size_t M, std::size_t N, std::size_t K>
+    requires(N <= 64)
+std::ostream &
+printBoards(std::ostream &os, const std::array<Bitboard<M, N>, K> &boards,
+            std::span<const std::string> labels, std::size_t perLine) {
+    std::size_t width = N;
+    for (const std::string &l : labels)
+        width = std::max(width, l.size());
+
+    const auto label = [&](std::size_t i) {
+        return i < labels.size() ? labels[i] : std::string{};
+    };
+
+    for (std::size_t first = 0; first < K; first += perLine) {
+        const std::size_t last = std::min(first + perLine, K);
+
+        for (std::size_t i = first; i < last; ++i)
+            os << label(i) << std::string(width - label(i).size(), ' ') << '\t';
+        os << '\n';
+
+        for (std::size_t r = 0; r < M; ++r) {
+            for (std::size_t i = first; i < last; ++i) {
+                for (std::size_t f = 0; f < N; ++f)
+                    os << (boards[i].test(r * Bitboard<M, N>::innerCols() + f)
+                               ? '1'
+                               : '.');
+                os << std::string(width - N, ' ') << '\t';
+            }
+            os << '\n';
+        }
+        os << '\n';
+    }
+    return os;
+}
+
 } // namespace Tilted

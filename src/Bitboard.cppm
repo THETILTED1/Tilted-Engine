@@ -90,6 +90,13 @@ export template <std::size_t M, std::size_t N>
     requires(N <= 64)
 std::ostream &operator<<(std::ostream &os, const Bitboard<M, N> &board);
 
+// Boards side by side, perLine to a row, each column widened to fit its label.
+export template <std::size_t M, std::size_t N, std::size_t K>
+    requires(N <= 64)
+std::ostream &
+printBoards(std::ostream &os, const std::array<Bitboard<M, N>, K> &boards,
+            std::span<const std::string> labels = {}, std::size_t perLine = 4);
+
 } // namespace Tilted
 
 #include "Bitboard.inl"

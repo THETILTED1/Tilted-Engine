@@ -57,6 +57,12 @@ enum class Piece {
 
 inline const std::string PieceChars = "PNKBRQISFWUCGVMDHEA";
 
+inline const std::array<std::string, static_cast<std::size_t>(Piece::None)>
+    PieceNames{"Pawn",   "Knight",     "King",        "Bishop",     "Rook",
+               "Queen",  "Alfil",      "Dabbaba",     "Ferz",       "Wazir",
+               "Horse",  "Camel",      "Grasshopper", "Wildebeest", "General",
+               "Dragon", "Archbishop", "Chancellor",  "Amazon"};
+
 enum class Variant {
     Chess,
     Atomic,
@@ -157,6 +163,13 @@ template <Variant V> class Ruleset {
     static constexpr auto oneOf = [](std::initializer_list<Variant> vs) {
         for (Variant v : vs)
             if (v == V)
+                return true;
+        return false;
+    };
+
+    static constexpr auto has = [](std::span<const Piece> ps) {
+        for (Piece p : ps)
+            if (PieceIndex<V>(p) >= 0)
                 return true;
         return false;
     };

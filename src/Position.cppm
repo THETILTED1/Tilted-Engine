@@ -77,17 +77,22 @@ class Position {
     int pieceAt(const Square &) const;
 
     Bits<V> isAttacked(const Square &, const Color &) const;
-    Bits<V> isChecked(const Color &) const;
 
     Bits<V> those(const Color &c, const int &type) const {
         return pieces[type] & sides[c];
     }
     Bits<V> any(const int &type) const { return pieces[type]; }
+
+    // Union over whichever of `ps` this variant actually has.
+    Bits<V> anyOf(std::span<const Piece> ps) const {
+        Bits<V> result{};
+        for (Piece p : ps)
+            if (const int x = PieceIndex<V>(p); x >= 0)
+                result |= pieces[x];
+        return result;
+    }
     Bits<V> side(const Color &c) const { return sides[c]; }
     Bits<V> occupied() const { return sides[Black] | sides[White]; }
-
-    Bits<V> rooks() const;
-    Bits<V> bishops() const;
 
     int sinceReset() const { return halfMoves[clock]; }
     Hash thisHash() const { return hashes[clock]; }
@@ -112,6 +117,9 @@ class Position {
 
     void passMove();
     void unpassMove();
+
+    Bits<V> isChecked(const Color &) const
+        requires(Ruleset<V>::Royal >= 0);
 
     bool insufficient() const
         requires(Ruleset<V>::Insufficient);

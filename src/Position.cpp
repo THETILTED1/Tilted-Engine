@@ -25,38 +25,84 @@ bool Position<V>::insufficient() const
     return false; // TODO
 }
 
+/*
+Bitboard Position::isAttacked(const Square& sq, const Color& c) const{
+    Bitboard checkers;
+
+    checkers = Attacks::PawnAttacks[!c][sq] & those(c, Pawn);
+    checkers |= Attacks::KnightAttacks[sq] & those(c, Knight);
+    checkers |= Attacks::KingAttacks[sq] & those(c, King);
+
+    Bitboard occ = occupied();
+    Bitboard army = sides[c];
+    checkers |= Attacks::rookAttacks(sq, occ) & straightPieces() & army;
+    checkers |= Attacks::bishopAttacks(sq, occ) & diagonalPieces() & army;
+
+    return checkers;
+}
+
+Bitboard Position::isChecked(const Color& c) const{
+    Square k = getLeastBit(those(c, King));
+
+    return isAttacked(k, flip(c));
+}
+
+*/
+
 template <Variant V>
     requires(Ruleset<V>::Supported)
 Bits<V> Position<V>::isAttacked(const Square &s, const Color &c) const {
-    return {}; // TODO
+    constexpr std::size_t M = Ruleset<V>::dims.ranks, N = Ruleset<V>::dims.cols;
+    const Bits<V> occ = occupied(), army = sides[c];
+    Bits<V> attackers{};
+
+    [&]<std::size_t... I>(std::index_sequence<I...>) {
+        (
+            [&] {
+                constexpr auto shape = Attacks::Shapes[I];
+                if constexpr (Ruleset<V>::has(shape))
+                    attackers |= Attacks::PieceAttacks<shape[0]>(s, occ) &
+                                 anyOf(shape) & army;
+            }(),
+            ...);
+    }(std::make_index_sequence<Attacks::Shapes.size()>{});
+
+    if constexpr (Ruleset<V>::has(Attacks::PawnLike))
+        attackers |= Attacks::PawnAttacks<M, N>(static_cast<Color>(!c), s) &
+                     anyOf(Attacks::PawnLike) & army;
+
+    if constexpr (Ruleset<V>::has(Attacks::HorseLike))
+        for (Bits<V> b = anyOf(Attacks::HorseLike) & army &
+                         Attacks::KnightAttacks<M, N>(s);
+             !b.empty();) {
+            const Square from = b.popLeastSquare();
+            if (Attacks::HorseAttacks(from, occ).test(s))
+                attackers |= Bits<V>::squareToBitboard(from);
+        }
+
+    if constexpr (Ruleset<V>::has(Attacks::GrasshopperLike))
+        for (Bits<V> b = anyOf(Attacks::GrasshopperLike) & army; !b.empty();) {
+            const Square from = b.popLeastSquare();
+            if (Attacks::GrasshopperAttacks(from, occ).test(s))
+                attackers |= Bits<V>::squareToBitboard(from);
+        }
+
+    return attackers;
 }
 
 template <Variant V>
     requires(Ruleset<V>::Supported)
-Bits<V> Position<V>::isChecked(const Color &c) const {
-    return {}; // TODO
-}
+Bits<V> Position<V>::isChecked(const Color &c) const
+    requires(Ruleset<V>::Royal >= 0)
+{
+    const Bits<V> royal = those(c, Ruleset<V>::Royal);
 
-template <Variant V>
-    requires(Ruleset<V>::Supported)
-Bits<V> Position<V>::rooks() const {
-    Bits<V> result{};
-    for (Piece p :
-         {Piece::Rook, Piece::Queen, Piece::Chancellor, Piece::Amazon})
-        if (const int x = PieceIndex<V>(p); x >= 0)
-            result |= pieces[x];
-    return result;
-}
+    // Horde's White is a kingless pawn swarm, so its royal square is empty.
+    if constexpr (V == Variant::Horde)
+        if (royal.empty())
+            return {};
 
-template <Variant V>
-    requires(Ruleset<V>::Supported)
-Bits<V> Position<V>::bishops() const {
-    Bits<V> result{};
-    for (Piece p : {Piece::Bishop, Piece::Queen, Piece::Dragon,
-                    Piece::Archbishop, Piece::Amazon})
-        if (const int x = PieceIndex<V>(p); x >= 0)
-            result |= pieces[x];
-    return result;
+    return isAttacked(royal.leastSquare(), static_cast<Color>(!c));
 }
 
 template <Variant V>
@@ -93,7 +139,7 @@ void Position<V>::empty() {
     castles = {};
     isFRC = {};
 
-    beginZobrist();
+    // beginZobrist();
 }
 
 template <Variant V>
@@ -187,7 +233,31 @@ void Position<V>::setStartPos() {
 template <Variant V>
     requires(Ruleset<V>::Supported)
 void Position<V>::print() {
-    // TODO
+    const std::array<std::string, 2> sideNames{"Black", "White"};
+    printBoards(std::cout, sides, sideNames);
+
+    std::array<std::string, Ruleset<V>::types> typeNames;
+    for (std::size_t t = 0; t < Ruleset<V>::types; ++t)
+        typeNames[t] =
+            PieceNames[static_cast<std::size_t>(Ruleset<V>::pieces[t])];
+    printBoards(std::cout, pieces, typeNames);
+
+    const Move<V> last = lastPlayed();
+    std::cout << "toMove     " << sideNames[toMove] << '\n'
+              << "lastPlayed " << (last.data ? last.moveUCIstr() : "-") << '\n';
+
+    if constexpr (Ruleset<V>::Castling)
+        std::cout << "castling   "
+                  << castles.castleStrings[castles.castleRights[clock]] << '\n';
+
+    if constexpr (Ruleset<V>::EnPassant)
+        std::cout << "enPassant  "
+                  << (enPassant[clock] == Bits<V>::noSquare()
+                          ? std::string("-")
+                          : Move<V>::algebraic(enPassant[clock]))
+                  << '\n';
+
+    std::cout << "zobrist    " << std::hex << thisHash() << std::dec << '\n';
 }
 
 template <Variant V>

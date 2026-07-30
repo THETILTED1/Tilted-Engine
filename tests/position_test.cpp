@@ -328,9 +328,7 @@ TEST(PositionTest, EmptyClearsEveryMember) {
     EXPECT_TRUE(p.occupied().empty());
     EXPECT_EQ(p.toMove, Black);
     EXPECT_EQ(p.clock, 0u);
-    // empty() ends with beginZobrist(), and Chess castles, so the cleared
-    // rights still contribute their key.
-    EXPECT_EQ(p.hashes[0], Zobrist::castling(0));
+    EXPECT_EQ(p.hashes[0], 0u);
     EXPECT_EQ(p.hashes[MAX_HISTORY_LEN - 1], 0u);
     EXPECT_EQ(p.halfMoves[0], 0);
     EXPECT_EQ(p.castles.castleRights[0], 0);

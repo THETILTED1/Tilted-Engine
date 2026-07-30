@@ -66,6 +66,33 @@ constexpr Bitboard<M, N> GrasshopperAttacks(Square s,
 template <Piece P, std::size_t M, std::size_t N>
 constexpr Bitboard<M, N> PieceAttacks(Square s, const Bitboard<M, N> &occ);
 
+// Each list is headed by a primitive shape, then every piece whose attacks
+// include it -- so one generation per list covers all of them.
+inline constexpr std::array RookLike{Piece::Rook, Piece::Queen,
+                                     Piece::Chancellor, Piece::Amazon};
+inline constexpr std::array BishopLike{Piece::Bishop, Piece::Queen,
+                                       Piece::Dragon, Piece::Archbishop,
+                                       Piece::Amazon};
+inline constexpr std::array KnightLike{Piece::Knight,     Piece::Wildebeest,
+                                       Piece::General,    Piece::Archbishop,
+                                       Piece::Chancellor, Piece::Amazon};
+inline constexpr std::array WazirLike{Piece::Wazir, Piece::King,
+                                      Piece::General};
+inline constexpr std::array FerzLike{Piece::Ferz, Piece::King, Piece::General};
+inline constexpr std::array CamelLike{Piece::Camel, Piece::Wildebeest};
+inline constexpr std::array AlfilLike{Piece::Alfil};
+inline constexpr std::array DabbabaLike{Piece::Dabbaba};
+
+// Kept out of Shapes: pawns are color-dependent, and a horse's hobbled leg or a
+// grasshopper's hurdle sits beside the mover, so neither reverses.
+inline constexpr std::array PawnLike{Piece::Pawn};
+inline constexpr std::array HorseLike{Piece::Horse, Piece::Dragon};
+inline constexpr std::array GrasshopperLike{Piece::Grasshopper};
+
+inline constexpr std::array<std::span<const Piece>, 8> Shapes{
+    RookLike, BishopLike, KnightLike, WazirLike,
+    FerzLike, CamelLike,  AlfilLike,  DabbabaLike};
+
 } // namespace Tilted::Attacks
 
 // Table definitions, #included into the purview for constexpr reachability.

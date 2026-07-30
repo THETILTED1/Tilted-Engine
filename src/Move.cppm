@@ -100,7 +100,9 @@ template <Variant V> class Move {
         return substring(duckOffset, squareWidth);
     }
 
-    std::string moveUCIstr(bool flip = false) const;
+    constexpr std::string moveUCIstr() const {
+        return algebraic(from()) + algebraic(to());
+    }
 };
 
 } // namespace Tilted
