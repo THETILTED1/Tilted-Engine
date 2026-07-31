@@ -11,7 +11,7 @@ template <Variant V> struct Castles {
     std::array<std::uint8_t, MAX_HISTORY_LEN>
         castleRights; // last 4 bits q k Q K
 
-    std::array<Square, 2> kingRookFrom, queenRookFrom;
+    std::array<Square, 2> kingFrom, kingRookFrom, queenRookFrom;
 
     static constexpr Square whiteBack =
         (Bits<V>::ranks() - 1) * Bits<V>::innerCols();
@@ -31,9 +31,16 @@ template <Variant V> struct Castles {
 
     std::array<std::uint8_t, Bits<V>::noSquare()> rightsChange;
 
+    [[no_unique_address]] Util::Conditional<V == Variant::Chess, bool> isFRC;
+
     std::uint8_t rights(const Color &c) {
         return std::uint8_t(0b11 << (2 * (White - c)));
     }
+
+    // A king or rook on noSquare() drops the rights it would have held.
+    void arrangeCastling(const std::array<Square, 2> &kings,
+                         const std::array<Square, 2> &kingRooks,
+                         const std::array<Square, 2> &queenRooks);
 
     std::array<std::string, 16> castleStrings = {
         "-", "K",  "Q",  "KQ",  "k",  "Kk",  "Qk",  "KQk",
@@ -54,7 +61,7 @@ class Position {
     std::array<int, MAX_HISTORY_LEN> halfMoves;
     std::array<Move<V>, MAX_HISTORY_LEN> plays;
 
-    std::size_t clock;
+    int clock;
 
     [[no_unique_address]] Util::Conditional<Ruleset<V>::Checky != 0,
                                             std::array<std::size_t, 2>> checks;
@@ -72,7 +79,6 @@ class Position {
         Ruleset<V>::EnPassant, std::array<Square, MAX_HISTORY_LEN>> enPassant;
     [[no_unique_address]] Util::Conditional<Ruleset<V>::Castling, Castles<V>>
         castles;
-    [[no_unique_address]] Util::Conditional<V == Variant::Chess, bool> isFRC;
 
     int pieceAt(const Square &) const;
 
@@ -98,6 +104,8 @@ class Position {
     Hash thisHash() const { return hashes[clock]; }
     Move<V> lastPlayed() const { return plays[clock]; }
 
+    std::string moveUCI(const Move<V> &) const;
+
     // void readFen(std::string);
     // std::string makeFen() const;
 
@@ -107,8 +115,7 @@ class Position {
     void print();
 
     void beginZobrist();
-    // void showZobrist() const;
-    int repetitions(int) const;
+    int repetitions(int ply = 0) const;
 
     // void forget();
 
