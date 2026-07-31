@@ -106,8 +106,8 @@ class Position {
 
     std::string moveUCI(const Move<V> &) const;
 
-    // void readFen(std::string);
-    // std::string makeFen() const;
+    void readFen(std::string);
+    std::string makeFen() const;
 
     void empty();
     void setStartPos();
@@ -117,7 +117,7 @@ class Position {
     void beginZobrist();
     int repetitions(int ply = 0) const;
 
-    // void forget();
+    void forget();
 
     void makeMove(const Move<V> &);
     void unmakeMove();

@@ -23,7 +23,6 @@ using Tilted::Color;
 using Tilted::Move;
 using Tilted::Piece;
 using Tilted::PieceIndex;
-using Tilted::PieceNames;
 using Tilted::Position;
 using Tilted::Ruleset;
 using Tilted::Square;
@@ -232,36 +231,22 @@ TEST(PositionTest, BoardAccessorsPartitionByColor) {
 
 
 
-// onlyPawns(): true while nothing but pawns and the royal piece remain. Helper
-// places one piece of `type` for `c` on `s` and keeps sides[] consistent.
-template <Variant V>
-void put(Position<V> &p, Color c, Piece type, Square s) {
-    p.pieces[PieceIndex<V>(type)].toggle(s);
-    p.sides[c].toggle(s);
+template <Variant V> bool onlyPawnsIn(const std::string &fen) {
+    Position<V> p{};
+    p.readFen(fen);
+    return p.onlyPawns();
 }
 
 TEST(PositionTest, OnlyPawnsCountsPawnsAndRoyals) {
-    Position<Variant::Chess> p{};
-    EXPECT_TRUE(p.onlyPawns()) << "an empty board has nothing but pawns";
+    constexpr Variant Chess = Variant::Chess;
+    EXPECT_TRUE(onlyPawnsIn<Chess>("8/8/8/8/8/8/8/8 w - - 0 1")) << "empty";
+    EXPECT_TRUE(onlyPawnsIn<Chess>("8/p7/8/8/8/8/P7/8 w - - 0 1"));
+    EXPECT_TRUE(onlyPawnsIn<Chess>("4k3/p7/8/8/8/8/P7/4K3 w - - 0 1"))
+        << "kings are royal in Chess";
 
-    put(p, White, Piece::Pawn, 48);
-    put(p, Black, Piece::Pawn, 8);
-    EXPECT_TRUE(p.onlyPawns());
-
-    // Kings are royal in Chess, so they don't break it.
-    put(p, White, Piece::King, 60);
-    put(p, Black, Piece::King, 4);
-    EXPECT_TRUE(p.onlyPawns());
-
-    // Any other piece does, and removing it restores the property.
-    put(p, White, Piece::Knight, 57);
-    EXPECT_FALSE(p.onlyPawns());
-    put(p, White, Piece::Knight, 57);
-    EXPECT_TRUE(p.onlyPawns());
-
-    // Either color's non-pawn counts -- it is a whole-board predicate.
-    put(p, Black, Piece::Rook, 0);
-    EXPECT_FALSE(p.onlyPawns());
+    EXPECT_FALSE(onlyPawnsIn<Chess>("4k3/p7/8/8/8/8/P7/1N2K3 w - - 0 1"));
+    EXPECT_FALSE(onlyPawnsIn<Chess>("r3k3/p7/8/8/8/8/P7/4K3 w - - 0 1"))
+        << "either color's non-pawn counts";
 }
 
 // Antichess has kings but Royal is -1, so a king is ordinary material there.
@@ -269,39 +254,30 @@ TEST(PositionTest, OnlyPawnsIgnoresNonRoyalKings) {
     static_assert(Ruleset<Variant::Antichess>::Royal < 0);
     static_assert(PieceIndex<Variant::Antichess>(Piece::King) >= 0);
 
-    Position<Variant::Antichess> p{};
-    put(p, White, Piece::Pawn, 48);
-    EXPECT_TRUE(p.onlyPawns());
-
-    put(p, White, Piece::King, 60);
-    EXPECT_FALSE(p.onlyPawns()) << "no royal piece, so the king is just material";
+    constexpr Variant Anti = Variant::Antichess;
+    EXPECT_TRUE(onlyPawnsIn<Anti>("8/8/8/8/8/8/P7/8 w - - 0 1"));
+    EXPECT_FALSE(onlyPawnsIn<Anti>("8/8/8/8/8/8/P7/4K3 w - - 0 1"))
+        << "no royal piece, so the king is just material";
 }
 
 // Padded boards: Gothic is 8x10 and XXL 14x14, both with innerCols() 16, so the
 // complement in onlyPawns must not pick up padding bits.
 TEST(PositionTest, OnlyPawnsOnPaddedBoards) {
-    Position<Variant::Gothic> g{};
-    EXPECT_TRUE(g.onlyPawns());
-    put(g, White, Piece::Pawn, Castles<Variant::Gothic>::whiteBack + 1);
-    EXPECT_TRUE(g.onlyPawns());
-    put(g, White, Piece::Chancellor, Castles<Variant::Gothic>::whiteBack + 2);
-    EXPECT_FALSE(g.onlyPawns());
+    constexpr Variant Goth = Variant::Gothic;
+    EXPECT_TRUE(onlyPawnsIn<Goth>("10/10/10/10/10/10/10/10 w - - 0 1"));
+    EXPECT_TRUE(onlyPawnsIn<Goth>("10/10/10/10/10/10/10/1P8 w - - 0 1"));
+    EXPECT_FALSE(onlyPawnsIn<Goth>("10/10/10/10/10/10/10/1PE7 w - - 0 1"));
 
-    Position<Variant::XXL> x{};
-    EXPECT_TRUE(x.onlyPawns());
-    put(x, Black, Piece::Amazon, 5);
-    EXPECT_FALSE(x.onlyPawns());
+    const std::string bare = "14/14/14/14/14/14/14/14/14/14/14/14/14";
+    EXPECT_TRUE(onlyPawnsIn<Variant::XXL>("14/" + bare + " w - - 0 1"));
+    EXPECT_FALSE(onlyPawnsIn<Variant::XXL>("5a8/" + bare + " w - - 0 1"));
 }
 
 // Horde's pawn side has no king at all; the predicate is still whole-board.
 TEST(PositionTest, OnlyPawnsHandlesKinglessSide) {
-    Position<Variant::Horde> p{};
-    for (Square s : {40, 41, 42})
-        put(p, White, Piece::Pawn, s);
-    put(p, Black, Piece::King, 4);
-    EXPECT_TRUE(p.onlyPawns());
-    put(p, Black, Piece::Queen, 3);
-    EXPECT_FALSE(p.onlyPawns());
+    constexpr Variant Horde = Variant::Horde;
+    EXPECT_TRUE(onlyPawnsIn<Horde>("4k3/8/8/8/8/PPP5/8/8 w - - 0 1"));
+    EXPECT_FALSE(onlyPawnsIn<Horde>("3qk3/8/8/8/8/PPP5/8/8 w - - 0 1"));
 }
 
 // Fill every member with something non-zero so empty() has work to do.
@@ -396,9 +372,8 @@ TEST(PositionTest, EmptyIsIdempotentAcrossVariants) {
     EXPECT_EQ(x.enPassant[0], Bits<Variant::XXL>::noSquare());
 }
 
-// Move's bit layout is private, so Enc rebuilds it and at() its square math.
-// MoveEncoderMatchesMoveItself pins both against Move: a wrong layout here would
-// quietly turn every move built below into fiction.
+// Move's bit layout is private, so Enc rebuilds it. MoveEncoderMatchesMoveItself
+// pins it against Move: a wrong layout would quietly make every move fiction.
 template <Variant V> struct Enc {
     static constexpr std::size_t sq = std::bit_width(Bits<V>::noSquare() - 1);
     static constexpr std::size_t pc = std::bit_width(Ruleset<V>::types - 1);
@@ -431,8 +406,7 @@ template <Variant V> struct Enc {
             flag(s.enPassant, enPassantBit) | flag(s.doublePush, doublePushBit)};
     }
 
-    // Algebraic (rank, file) as an internal square: a8 is 0 and the index grows
-    // toward White's home rank, so rank 1 sits last.
+    // Algebraic (rank, file) as an internal square: a8 is 0, rank 1 last.
     static constexpr Square at(std::size_t rank, std::size_t file) {
         return (Bits<V>::ranks() - rank) * Bits<V>::innerCols() + file;
     }
@@ -454,13 +428,6 @@ void history(Position<V> &p, std::initializer_list<Hash> hs) {
         ++i;
     }
     p.clock = i - 1;
-}
-
-template <Variant V> void kings(Position<V> &p) {
-    p.empty();
-    put(p, White, Piece::King, Enc<V>::at(1, 4));
-    put(p, Black, Piece::King, Enc<V>::at(8, 4));
-    p.toMove = White;
 }
 
 // beginZobrist() rebuilds a hash from the boards alone and works off ply 0,
@@ -516,15 +483,145 @@ template <Variant V> void expectRoundTrip(Position<V> &p, const Move<V> &m) {
         EXPECT_EQ(p.thisPassant(), passant);
 }
 
-// Two bare kings plus `extra`, each on its own square.
-template <Variant V>
-bool drawnWith(std::initializer_list<std::pair<Color, Piece>> extra) {
+template <Variant V> bool drawnWith(const std::string &fen) {
     Position<V> p{};
-    kings(p);
-    Square s = Enc<V>::at(4, 0);
-    for (const auto &[c, type] : extra)
-        put(p, c, type, s++);
+    p.readFen(fen);
     return p.insufficient();
+}
+
+TEST(PositionTest, ReadFenParsesTheBoardAndTheCounters) {
+    Position<Variant::Chess> p{}, start{};
+    start.setStartPos();
+    p.readFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+
+    EXPECT_EQ(p.pieces, start.pieces) << "the start position, read back";
+    EXPECT_EQ(p.sides, start.sides);
+    EXPECT_EQ(p.toMove, White);
+    EXPECT_EQ(p.thisPassant(), Bits<Variant::Chess>::noSquare());
+    EXPECT_EQ(p.sinceReset(), 0);
+    EXPECT_EQ(p.castles.castleRights[0], 0b1111);
+    EXPECT_EQ(p.castles.kingRookFrom, start.castles.kingRookFrom);
+    EXPECT_EQ(p.castles.queenRookFrom, start.castles.queenRookFrom);
+    EXPECT_EQ(p.thisHash(), start.thisHash()) << "rights folded in and all";
+
+    p.readFen("4k3/8/8/8/4pP2/8/8/4K3 b Kq f3 7 40");
+    EXPECT_EQ(p.castles.castleRights[0], 0b1001) << "K and q only";
+
+    p.readFen("4k3/8/8/8/4pP2/8/8/4K3 b - f3 7 40");
+    EXPECT_EQ(p.pieceAt(E::at(4, 5)), E::index(Piece::Pawn));
+    EXPECT_TRUE(p.sides[White].test(E::at(4, 5)));
+    EXPECT_TRUE(p.sides[Black].test(E::at(4, 4)));
+    EXPECT_EQ(p.occupied().count(), 4u);
+    EXPECT_EQ(p.toMove, Black);
+    EXPECT_EQ(p.thisPassant(), E::at(3, 5)) << "f3";
+    EXPECT_EQ(p.sinceReset(), 7);
+    expectConsistent(p);
+}
+
+// Shredder spells the rooks' files, so a shuffled rank needs no corner guess.
+TEST(PositionTest, ReadFenReadsShredderCastlingWhenFRC) {
+    Position<Variant::Chess> p{};
+    p.castles.isFRC = true;
+    p.readFen("bqnrkrnb/pppppppp/8/8/8/8/PPPPPPPP/BQNRKRNB w DFdf - 0 1");
+
+    EXPECT_EQ(p.castles.castleRights[0], 0b1111);
+    EXPECT_EQ(p.castles.kingFrom[White], E::at(1, 4));
+    EXPECT_EQ(p.castles.kingRookFrom[White], E::at(1, 5)) << "f1, not the corner";
+    EXPECT_EQ(p.castles.queenRookFrom[White], E::at(1, 3)) << "d1";
+    EXPECT_EQ(p.castles.kingRookFrom[Black], E::at(8, 5));
+    EXPECT_EQ(p.castles.queenRookFrom[Black], E::at(8, 3));
+
+    const auto sq = [](std::size_t rank, std::size_t file) {
+        return Bits<Variant::Chess>::squareToBitboard(E::at(rank, file));
+    };
+    EXPECT_EQ(p.castles.kingOccMask[White], sq(1, 6)) << "only g1 must clear";
+    EXPECT_EQ(p.castles.queenOccMask[White], sq(1, 2)) << "only c1 must clear";
+    EXPECT_EQ(p.castles.kingSafeMask[White], sq(1, 4) | sq(1, 5) | sq(1, 6));
+    EXPECT_EQ(p.castles.queenSafeMask[White], sq(1, 2) | sq(1, 3) | sq(1, 4));
+    expectConsistent(p);
+}
+
+// Ten files on a sixteen-wide row: an empty rank is "10", padding never shows.
+TEST(PositionTest, ReadFenHandlesWideBoards) {
+    using G = Enc<Variant::Gothic>;
+    Position<Variant::Gothic> p{}, start{};
+    start.setStartPos();
+    // PieceChars spells Chancellor 'E' and Archbishop 'H', not the 'C' and 'A'
+    // that Capablanca FENs use elsewhere.
+    p.readFen("rnbqekhbnr/pppppppppp/10/10/10/10/PPPPPPPPPP/RNBQEKHBNR w - - 0 1");
+
+    EXPECT_EQ(p.pieces, start.pieces);
+    EXPECT_EQ(p.sides, start.sides);
+    EXPECT_EQ(p.pieceAt(G::at(8, 9)), G::index(Piece::Rook)) << "j8, the last file";
+    expectConsistent(p);
+}
+
+TEST(PositionTest, MakeFenRoundTripsWithReadFen) {
+    Position<Variant::Chess> p{};
+    p.setStartPos();
+    EXPECT_EQ(p.makeFen(),
+              "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1023");
+
+    for (const std::string &fen :
+         {"rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1023",
+          "4k3/8/8/8/4pP2/8/8/4K3 b Kq f3 7 1023",
+          "8/8/8/8/8/8/8/8 w - - 0 1023"}) {
+        SCOPED_TRACE(fen);
+        p.readFen(fen);
+        EXPECT_EQ(p.makeFen(), fen);
+    }
+
+    // Ten files: an empty rank is "10", and the padding never shows.
+    Position<Variant::Gothic> g{};
+    g.setStartPos();
+    EXPECT_EQ(g.makeFen(), "rnbqekhbnr/pppppppppp/10/10/10/10/PPPPPPPPPP/"
+                           "RNBQEKHBNR w KQkq - 0 1023");
+
+    // Chaturanga has neither castling nor en passant, so both fields are '-'.
+    Position<Variant::Chaturanga> c{};
+    c.setStartPos();
+    EXPECT_EQ(c.makeFen(),
+              "rnikfinr/pppppppp/8/8/8/8/PPPPPPPP/RNIKFINR w - - 0 1023");
+}
+
+// Shredder writes the rooks' files, kingside first, as readFen reads them back.
+TEST(PositionTest, MakeFenWritesShredderCastlingWhenFRC) {
+    Position<Variant::Chess> p{};
+    p.castles.isFRC = true;
+
+    const std::string fen =
+        "bqnrkrnb/pppppppp/8/8/8/8/PPPPPPPP/BQNRKRNB w FDfd - 0 1023";
+    p.readFen(fen);
+    EXPECT_EQ(p.makeFen(), fen);
+
+    p.setStartPos();
+    EXPECT_EQ(p.makeFen(),
+              "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w HAha - 0 1023")
+        << "the standard rank, spelled the Shredder way";
+}
+
+// Forgetting must land exactly where reading the same position would.
+TEST(PositionTest, ForgetLeavesWhatReadFenWould) {
+    Position<Variant::Chess> played{}, loaded{};
+    played.setStartPos();
+    played.makeMove(E::move({.from = E::at(2, 4),
+                             .to = E::at(4, 4),
+                             .moving = E::index(Piece::Pawn),
+                             .doublePush = true}));
+    played.forget();
+
+    loaded.readFen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1");
+
+    EXPECT_EQ(played.pieces, loaded.pieces);
+    EXPECT_EQ(played.sides, loaded.sides);
+    EXPECT_EQ(played.toMove, loaded.toMove);
+    EXPECT_EQ(played.clock, 0);
+    EXPECT_EQ(played.thisHash(), loaded.thisHash());
+    EXPECT_EQ(played.sinceReset(), loaded.sinceReset());
+    EXPECT_EQ(played.thisPassant(), loaded.thisPassant());
+    EXPECT_EQ(played.castles.castleRights[0], loaded.castles.castleRights[0]);
+    EXPECT_EQ(played.lastPlayed().data, loaded.lastPlayed().data);
+    EXPECT_EQ(played.repetitions(), 1) << "the discarded plies cannot repeat";
 }
 
 TEST(PositionTest, MoveEncoderMatchesMoveItself) {
@@ -680,10 +777,7 @@ TEST(PositionTest, MakeMoveMovesCapturesAndPromotes) {
     expectConsistent(quiet);
 
     Position<Variant::Chess> capture{};
-    kings(capture);
-    put(capture, White, Piece::Rook, E::at(1, 0));
-    put(capture, Black, Piece::Knight, E::at(8, 0));
-    capture.beginZobrist();
+    capture.readFen("n3k3/8/8/8/8/8/8/R3K3 w - - 0 1");
     capture.makeMove(E::move({.from = E::at(1, 0),
                               .to = E::at(8, 0),
                               .moving = rook,
@@ -697,10 +791,7 @@ TEST(PositionTest, MakeMoveMovesCapturesAndPromotes) {
     // A promotion capture is the awkward one: moving, ending and victim all land
     // on the pawn board or the queen board rather than one each.
     Position<Variant::Chess> promote{};
-    kings(promote);
-    put(promote, White, Piece::Pawn, E::at(7, 0));
-    put(promote, Black, Piece::Pawn, E::at(8, 1));
-    promote.beginZobrist();
+    promote.readFen("1p2k3/P7/8/8/8/8/8/4K3 w - - 0 1");
     promote.makeMove(E::move({.from = E::at(7, 0),
                               .to = E::at(8, 1),
                               .moving = pawn,
@@ -716,11 +807,7 @@ TEST(PositionTest, MakeMoveHandlesEnPassant) {
     const int pawn = E::index(Piece::Pawn), knight = E::index(Piece::Knight);
 
     Position<Variant::Chess> w{};
-    kings(w);
-    put(w, White, Piece::Pawn, E::at(5, 3));
-    put(w, Black, Piece::Pawn, E::at(5, 4));
-    w.enPassant[0] = E::at(6, 4);
-    w.beginZobrist();
+    w.readFen("4k3/8/8/3Pp3/8/8/8/4K3 w - e6 0 1");
     w.makeMove(E::move({.from = E::at(5, 3),
                         .to = E::at(6, 4),
                         .moving = pawn,
@@ -733,12 +820,7 @@ TEST(PositionTest, MakeMoveHandlesEnPassant) {
     expectConsistent(w);
 
     Position<Variant::Chess> b{};
-    kings(b);
-    put(b, Black, Piece::Pawn, E::at(4, 3));
-    put(b, White, Piece::Pawn, E::at(4, 4));
-    b.toMove = Black;
-    b.enPassant[0] = E::at(3, 4);
-    b.beginZobrist();
+    b.readFen("4k3/8/8/8/3pP3/8/8/4K3 b - e3 0 1");
     b.makeMove(E::move({.from = E::at(4, 3),
                         .to = E::at(3, 4),
                         .moving = pawn,
@@ -768,8 +850,7 @@ TEST(PositionTest, MakeMoveHandlesEnPassant) {
     EXPECT_EQ(p.thisPassant(), Bits<Variant::Chess>::noSquare());
     expectConsistent(p);
 
-    // Gothic is 8x10 on a 16-wide padded row, so a rank step is not the file
-    // count.
+    // Gothic's rank step is 16, not its ten files.
     using G = Enc<Variant::Gothic>;
     Position<Variant::Gothic> g{};
     g.setStartPos();
@@ -787,10 +868,7 @@ TEST(PositionTest, MakeMoveHandlesCastling) {
                  h1 = E::at(1, 7);
 
     Position<Variant::Chess> p{};
-    p.setStartPos();
-    put(p, White, Piece::Bishop, f1);
-    put(p, White, Piece::Knight, g1);
-    p.beginZobrist();
+    p.readFen("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1");
 
     p.makeMove(
         E::move({.from = e1, .to = g1, .moving = king, .castling = true}));
@@ -819,11 +897,7 @@ TEST(PositionTest, MakeMoveTracksTheHalfmoveClock) {
     EXPECT_EQ(p.sinceReset(), 0) << "a pawn move is irreversible";
 
     Position<Variant::Chess> q{};
-    kings(q);
-    put(q, White, Piece::Rook, E::at(1, 0));
-    put(q, Black, Piece::Knight, E::at(8, 0));
-    q.halfMoves[0] = 9;
-    q.beginZobrist();
+    q.readFen("n3k3/8/8/8/8/8/8/R3K3 w - - 9 1");
     q.makeMove(E::move({.from = E::at(1, 0),
                         .to = E::at(8, 0),
                         .moving = rook,
@@ -840,69 +914,41 @@ TEST(PositionTest, UnmakeMoveReversesEveryMoveKind) {
               king = E::index(Piece::King);
 
     struct Case {
-        const char *name;
-        void (*setup)(Position<Variant::Chess> &);
+        const char *fen;
         Move<Variant::Chess> move;
     };
 
+    const std::string start =
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
     const std::array cases{
-        Case{"quiet", [](Position<Variant::Chess> &p) { p.setStartPos(); },
-             E::move({.from = E::at(1, 6), .to = E::at(3, 5),
-                      .moving = knight})},
-        Case{"double push", [](Position<Variant::Chess> &p) { p.setStartPos(); },
-             E::move({.from = E::at(2, 4), .to = E::at(4, 4), .moving = pawn,
-                      .doublePush = true})},
-        Case{"capture",
-             [](Position<Variant::Chess> &p) {
-                 kings(p);
-                 put(p, White, Piece::Rook, E::at(1, 0));
-                 put(p, Black, Piece::Knight, E::at(8, 0));
-                 p.halfMoves[0] = 9;
-                 p.beginZobrist();
-             },
+        Case{start.c_str(), E::move({.from = E::at(1, 6),
+                                     .to = E::at(3, 5),
+                                     .moving = knight})},
+        Case{start.c_str(), E::move({.from = E::at(2, 4),
+                                     .to = E::at(4, 4),
+                                     .moving = pawn,
+                                     .doublePush = true})},
+        Case{"n3k3/8/8/8/8/8/8/R3K3 w - - 9 1",
              E::move({.from = E::at(1, 0), .to = E::at(8, 0), .moving = rook,
                       .victim = knight, .capturing = true})},
-        Case{"promotion",
-             [](Position<Variant::Chess> &p) {
-                 kings(p);
-                 put(p, White, Piece::Pawn, E::at(7, 0));
-                 p.beginZobrist();
-             },
+        Case{"4k3/P7/8/8/8/8/8/4K3 w - - 0 1",
              E::move({.from = E::at(7, 0), .to = E::at(8, 0), .moving = pawn,
                       .ending = queen})},
-        Case{"promotion capture",
-             [](Position<Variant::Chess> &p) {
-                 kings(p);
-                 put(p, White, Piece::Pawn, E::at(7, 0));
-                 put(p, Black, Piece::Pawn, E::at(8, 1));
-                 p.beginZobrist();
-             },
+        Case{"1p2k3/P7/8/8/8/8/8/4K3 w - - 0 1",
              E::move({.from = E::at(7, 0), .to = E::at(8, 1), .moving = pawn,
                       .ending = queen, .victim = pawn, .capturing = true})},
-        Case{"en passant",
-             [](Position<Variant::Chess> &p) {
-                 kings(p);
-                 put(p, White, Piece::Pawn, E::at(5, 3));
-                 put(p, Black, Piece::Pawn, E::at(5, 4));
-                 p.enPassant[0] = E::at(6, 4);
-                 p.beginZobrist();
-             },
+        Case{"4k3/8/8/3Pp3/8/8/8/4K3 w - e6 0 1",
              E::move({.from = E::at(5, 3), .to = E::at(6, 4), .moving = pawn,
                       .victim = pawn, .capturing = true, .enPassant = true})},
-        Case{"castle",
-             [](Position<Variant::Chess> &p) {
-                 p.setStartPos();
-                 put(p, White, Piece::Bishop, E::at(1, 5));
-                 put(p, White, Piece::Knight, E::at(1, 6));
-                 p.beginZobrist();
-             },
+        Case{"r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1",
              E::move({.from = E::at(1, 4), .to = E::at(1, 6), .moving = king,
                       .castling = true})}};
 
     for (const Case &c : cases) {
-        SCOPED_TRACE(c.name);
+        SCOPED_TRACE(c.fen);
         Position<Variant::Chess> p{};
-        c.setup(p);
+        p.readFen(c.fen);
         expectRoundTrip(p, c.move);
     }
 }
@@ -943,30 +989,32 @@ TEST(PositionTest, UnmakeMoveRewindsASequence) {
 }
 
 TEST(PositionTest, InsufficientCountsMinors) {
-    using enum Piece;
-    EXPECT_TRUE(drawnWith<Variant::Chess>({})) << "two bare kings";
-    EXPECT_TRUE(drawnWith<Variant::Chess>({{White, Knight}})) << "KN v K";
-    EXPECT_TRUE(drawnWith<Variant::Chess>({{Black, Bishop}}))
+    constexpr Variant Chess = Variant::Chess;
+    EXPECT_TRUE(drawnWith<Chess>("4k3/8/8/8/8/8/8/4K3 w - - 0 1")) << "bare kings";
+    EXPECT_TRUE(drawnWith<Chess>("4k3/8/8/8/8/8/8/4KN2 w - - 0 1")) << "KN v K";
+    EXPECT_TRUE(drawnWith<Chess>("3bk3/8/8/8/8/8/8/4K3 w - - 0 1"))
         << "either side may hold it";
-    EXPECT_FALSE(drawnWith<Variant::Chess>({{White, Knight}, {Black, Bishop}}))
+    EXPECT_FALSE(drawnWith<Chess>("3bk3/8/8/8/8/8/8/4KN2 w - - 0 1"))
         << "KN v KB is two minors";
 
-    for (const Piece type : {Pawn, Rook, Queen})
-        EXPECT_FALSE(drawnWith<Variant::Chess>({{White, type}}))
-            << PieceNames[static_cast<std::size_t>(type)] << " can mate";
+    for (const std::string &rank : {"5P2/4K3", "8/4KR2", "8/4KQ2"}) {
+        const std::string fen = "4k3/8/8/8/8/8/" + rank + " w - - 0 1";
+        EXPECT_FALSE(drawnWith<Chess>(fen)) << fen << " can mate";
+    }
 }
 
 // Shatranj bares the king, so a lone minor still wins there. Paradigm has
 // knights but no bishops, and its Dragon is no minor.
 TEST(PositionTest, InsufficientFollowsTheVariantsRules) {
-    using enum Piece;
-    EXPECT_TRUE(drawnWith<Variant::Chaturanga>({}));
-    for (const Piece type : {Knight, Alfil, Ferz})
-        EXPECT_FALSE(drawnWith<Variant::Chaturanga>({{White, type}}))
-            << PieceNames[static_cast<std::size_t>(type)] << " still wins";
+    EXPECT_TRUE(drawnWith<Variant::Chaturanga>("4k3/8/8/8/8/8/8/4K3 w - - 0 1"));
+    for (const char glyph : {'N', 'I', 'F'}) {
+        const std::string fen =
+            std::string("4k3/8/8/8/8/8/8/4K") + glyph + "2 w - - 0 1";
+        EXPECT_FALSE(drawnWith<Variant::Chaturanga>(fen)) << fen << " still wins";
+    }
 
-    EXPECT_TRUE(drawnWith<Variant::Paradigm>({{White, Knight}}));
-    EXPECT_FALSE(drawnWith<Variant::Paradigm>({{White, Dragon}}));
+    EXPECT_TRUE(drawnWith<Variant::Paradigm>("4k3/8/8/8/8/8/8/4KN2 w - - 0 1"));
+    EXPECT_FALSE(drawnWith<Variant::Paradigm>("4k3/8/8/8/8/8/8/4KD2 w - - 0 1"));
 }
 
 TEST(PositionTest, MoveUCIWritesSquaresPromotionsAndCastles) {

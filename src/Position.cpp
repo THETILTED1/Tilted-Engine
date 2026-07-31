@@ -23,6 +23,16 @@ void Castles<V>::arrangeCastling(const std::array<Square, 2> &kings,
     rightsChange.fill(0);
     castleRights[0] = 0;
 
+    bool frc = false;
+    if constexpr (V == Variant::Chess)
+        frc = isFRC;
+
+    // KQkq, or each rook's own file under Shredder. A right no rook was named
+    // for keeps a placeholder, which no reachable mask can print.
+    std::array<char, 4> parts{'Y', 'Z', 'y', 'z'};
+    if (!frc)
+        parts = {'K', 'Q', 'k', 'q'};
+
     // between() is open, and both ends of a castling run are part of it.
     const auto span = [](Square a, Square b) {
         return Bits<V>::between(a, b) | Bits<V>::squareToBitboard(a) |
@@ -46,11 +56,28 @@ void Castles<V>::arrangeCastling(const std::array<Square, 2> &kings,
             (kingside ? kingSafeMask : queenSafeMask)[c] = path;
             (kingside ? kingOccMask : queenOccMask)[c] = clear;
 
-            const std::uint8_t bit = 1 << (2 * (White - c) + !kingside);
+            const std::size_t slot = 2 * (White - c) + !kingside;
+            const std::uint8_t bit = 1 << slot;
+
             rightsChange[king] |= bit;
             rightsChange[rook] |= bit;
             castleRights[0] |= bit;
+
+            if (frc) {
+                const char file =
+                    static_cast<char>('A' + rook % Bits<V>::innerCols());
+                parts[slot] =
+                    c == White ? file : static_cast<char>(file + ('a' - 'A'));
+            }
         }
+
+    castleStrings[0] = "-";
+    for (std::size_t mask = 1; mask < castleStrings.size(); ++mask) {
+        castleStrings[mask].clear();
+        for (std::size_t slot = 0; slot < parts.size(); ++slot)
+            if (mask & (1u << slot))
+                castleStrings[mask] += parts[slot];
+    }
 }
 
 template <Variant V>
@@ -278,6 +305,168 @@ void Position<V>::setStartPos() {
 
 template <Variant V>
     requires(Ruleset<V>::Supported)
+void Position<V>::readFen(std::string fen) {
+    empty();
+
+    std::istringstream segments(fen);
+    std::string field;
+    segments >> field;
+
+    // FEN reads rank 8 first and so does this numbering: the walk runs forward.
+    Square rank = 0, file = 0;
+    for (std::size_t i = 0; i < field.size(); ++i) {
+        const char c = field[i];
+
+        if (c == '/') {
+            ++rank;
+            file = 0;
+            continue;
+        }
+
+        if (std::isdigit(static_cast<unsigned char>(c))) {
+            // A run reaches two digits once a board is ten or more wide.
+            std::size_t run = 0;
+            while (i < field.size() &&
+                   std::isdigit(static_cast<unsigned char>(field[i])))
+                run = run * 10 + static_cast<std::size_t>(field[i++] - '0');
+            --i;
+            file += run;
+            continue;
+        }
+
+        // PieceChars is ordered by the Piece enum, so its index is the piece
+        // and the case is the color.
+        const int type = PieceIndex<V>(static_cast<Piece>(
+            PieceChars.find(static_cast<char>(std::toupper(c)))));
+        const Color side =
+            std::isupper(static_cast<unsigned char>(c)) ? White : Black;
+        const Square s = rank * Bits<V>::innerCols() + file++;
+
+        pieces[type].toggle(s);
+        sides[side].toggle(s);
+    }
+
+    segments >> field;
+    toMove = field[0] == 'w' ? White : Black;
+
+    segments >> field;
+    if constexpr (Ruleset<V>::Castling) {
+        bool frc = false;
+        if constexpr (V == Variant::Chess)
+            frc = castles.isFRC;
+
+        std::array<Square, 2> kings, kingRooks, queenRooks;
+        kings.fill(Bits<V>::noSquare());
+        kingRooks = queenRooks = kings;
+
+        for (const Color c : {Black, White}) {
+            const Bits<V> royal = those(c, Ruleset<V>::Royal);
+            if (!royal.empty()) // Horde's White has no king to castle
+                kings[c] = royal.leastSquare();
+        }
+
+        // Shredder-FEN names each rook's file and never spells KQkq, so the two
+        // forms cannot collide.
+        if (frc)
+            for (const char letter : field) {
+                const std::size_t file =
+                    static_cast<std::size_t>(std::tolower(letter) - 'a');
+                if (file >= Bits<V>::cols())
+                    continue;
+
+                const Color c = std::isupper(static_cast<unsigned char>(letter))
+                                    ? White
+                                    : Black;
+                const Square s =
+                    (c == White ? Castles<V>::whiteBack : 0) + file;
+                (s > kings[c] ? kingRooks : queenRooks)[c] = s;
+            }
+        else
+            for (const Color c : {Black, White}) {
+                const Square back = c == White ? Castles<V>::whiteBack : 0;
+
+                if (field.find(c == White ? 'K' : 'k') != std::string::npos)
+                    kingRooks[c] = back + Bits<V>::cols() - 1;
+                if (field.find(c == White ? 'Q' : 'q') != std::string::npos)
+                    queenRooks[c] = back;
+            }
+
+        castles.arrangeCastling(kings, kingRooks, queenRooks);
+    }
+
+    segments >> field;
+    if constexpr (Ruleset<V>::EnPassant) {
+        enPassant[0] = Bits<V>::noSquare();
+        if (field != "-") {
+            const Square rank = Bits<V>::ranks() - std::stoul(field.substr(1));
+            enPassant[0] = rank * Bits<V>::innerCols() + (field[0] - 'a');
+        }
+    }
+
+    // Short FENs stop here; empty() already zeroed the clock.
+    if (segments >> field)
+        halfMoves[0] = std::stoi(field);
+
+    beginZobrist();
+}
+
+template <Variant V>
+    requires(Ruleset<V>::Supported)
+std::string Position<V>::makeFen() const {
+    std::string fen;
+
+    for (Square r = 0; r < Bits<V>::ranks(); ++r) {
+        std::size_t empties = 0;
+
+        for (Square f = 0; f < Bits<V>::cols(); ++f) {
+            const Square s = r * Bits<V>::innerCols() + f;
+            const int type = pieceAt(s);
+
+            if (type < 0) {
+                ++empties;
+                continue;
+            }
+
+            if (empties) { // a run reaches two digits past nine files
+                fen += std::to_string(empties);
+                empties = 0;
+            }
+
+            const char glyph =
+                PieceChars[static_cast<std::size_t>(Ruleset<V>::pieces[type])];
+            fen += sides[White].test(s)
+                       ? glyph
+                       : static_cast<char>(glyph + ('a' - 'A'));
+        }
+
+        if (empties)
+            fen += std::to_string(empties);
+        if (r + 1 < Bits<V>::ranks())
+            fen += '/';
+    }
+
+    fen += toMove ? " w " : " b ";
+
+    if constexpr (Ruleset<V>::Castling)
+        fen += castles.castleStrings[castles.castleRights[clock]];
+    else
+        fen += '-';
+
+    fen += ' ';
+
+    if constexpr (Ruleset<V>::EnPassant)
+        fen += enPassant[clock] == Bits<V>::noSquare()
+                   ? std::string("-")
+                   : Move<V>::algebraic(enPassant[clock]);
+    else
+        fen += '-';
+
+    // The full move number is not tracked, so it reads as a placeholder.
+    return fen + ' ' + std::to_string(sinceReset()) + " 1023";
+}
+
+template <Variant V>
+    requires(Ruleset<V>::Supported)
 std::string Position<V>::moveUCI(const Move<V> &m) const {
     Square to = m.to();
 
@@ -368,9 +557,23 @@ int Position<V>::repetitions(int ply) const {
     return reps;
 }
 
-// Applies `m` to the board while folding the identical change into a fresh
-// hash, so key and position never drift. Every field it writes is indexed by
-// the new clock, which is what lets unmakeMove restore state by rewinding.
+template <Variant V>
+    requires(Ruleset<V>::Supported)
+void Position<V>::forget() {
+    hashes[0] = thisHash();
+    halfMoves[0] = sinceReset();
+    plays[0] = Move<V>::null(); // nothing left to unmake, as after a readFen
+
+    if constexpr (Ruleset<V>::EnPassant)
+        enPassant[0] = enPassant[clock];
+    if constexpr (Ruleset<V>::Castling)
+        castles.castleRights[0] = castles.castleRights[clock];
+
+    clock = 0;
+}
+
+// Every field this writes is indexed by the new clock, which is what lets
+// unmakeMove restore state by rewinding it.
 template <Variant V>
     requires(Ruleset<V>::Supported)
 void Position<V>::makeMove(const Move<V> &m) {
@@ -378,8 +581,7 @@ void Position<V>::makeMove(const Move<V> &m) {
     const std::size_t moving = m.moving(), ending = m.ending();
     const Color enemy = static_cast<Color>(!toMove);
 
-    // A rank step. Index grows toward White's home rank, so a mover's own side
-    // is +stride: rear = end - stride + 2 * stride * toMove, no branch needed.
+    // Index grows toward White's home rank, so a mover's own side is +stride.
     const std::size_t stride = Bits<V>::innerCols();
 
     ++clock;
@@ -390,8 +592,7 @@ void Position<V>::makeMove(const Move<V> &m) {
     // Ask capturing(), never victim(): these type indices are dense, so 0 is a
     // real piece (the pawn, mostly) and cannot double as "captured nothing".
     if (m.capturing()) {
-        // An en-passant victim stands beside the pawn, not under it -- one rank
-        // behind where it lands. An ordinary capture takes no step.
+        // An en-passant victim stands beside the pawn, not under it.
         Square step = 0;
         if constexpr (Ruleset<V>::EnPassant)
             step = static_cast<Square>(m.enPassant()) * stride;
@@ -403,8 +604,6 @@ void Position<V>::makeMove(const Move<V> &m) {
         hashes[clock] ^= Zobrist::piece<V>(enemy, m.victim(), target);
     }
 
-    // moving and ending differ on a promotion, so the two ends of the move come
-    // off and go onto separate piece boards.
     sides[toMove].toggle(start);
     sides[toMove].toggle(end);
     pieces[moving].toggle(start);
@@ -419,7 +618,6 @@ void Position<V>::makeMove(const Move<V> &m) {
             last != Bits<V>::noSquare())
             hashes[clock] ^= Zobrist::enPassant(last % stride);
 
-        // A double push grants the square it crossed, on the pawn's own file.
         enPassant[clock] = Bits<V>::noSquare();
         if (m.doublePush()) {
             enPassant[clock] = end - stride + 2 * stride * toMove;
