@@ -1,6 +1,7 @@
 export module Position;
 
 import std;
+export import Variants;
 export import Attacks;
 export import Move;
 export import Util;
@@ -129,7 +130,7 @@ class Position {
         requires(Ruleset<V>::Royal >= 0);
 
     bool insufficient() const
-        requires(Ruleset<V>::Insufficient);
+        requires(Ruleset<V>::Insufficient != 0);
 
     int thisPassant() const
         requires(Ruleset<V>::EnPassant)
@@ -139,10 +140,6 @@ class Position {
 
     bool onlyPawns() const
         requires(PieceIndex<V>(Piece::Pawn) >= 0);
-
-  private:
-    void place(std::span<const Piece>);
-    void mirror();
 };
 
 } // namespace Tilted

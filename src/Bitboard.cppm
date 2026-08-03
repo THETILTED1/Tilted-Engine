@@ -1,7 +1,7 @@
 export module Bitboard;
 
 import std;
-export import Consts;
+export import Variants;
 
 namespace Tilted {
 

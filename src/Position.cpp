@@ -92,19 +92,18 @@ int Position<V>::pieceAt(const Square &s) const {
 template <Variant V>
     requires(Ruleset<V>::Supported)
 bool Position<V>::insufficient() const
-    requires(Ruleset<V>::Insufficient)
+    requires(Ruleset<V>::Insufficient != 0)
 {
     const Bits<V> royals = pieces[Ruleset<V>::Royal];
-
-    // Shatranj bares the king and 3check wins on checks, so KN and KB still win
-    // there: only two bare kings draw.
-    if constexpr (Ruleset<V>::oneOf({Variant::Chaturanga, Variant::ThreeCheck}))
-        return (occupied() & ~royals).empty();
 
     constexpr auto minors = std::to_array({Piece::Knight, Piece::Bishop});
     const Bits<V> minor = anyOf(minors);
 
-    return (occupied() & ~royals & ~minor).empty() && minor.count() <= 1;
+    // Rule 2 spares nothing: a bared king loses at Shatranj and a check wins at
+    // three-check, so KN and KB keep their winning chances there.
+    constexpr std::size_t spare = Ruleset<V>::Insufficient == 1;
+
+    return (occupied() & ~royals & ~minor).empty() && minor.count() <= spare;
 }
 
 template <Variant V>
@@ -118,18 +117,18 @@ Bits<V> Position<V>::isAttacked(const Square &s, const Color &c) const {
         (
             [&] {
                 constexpr auto shape = Attacks::Shapes[I];
-                if constexpr (Ruleset<V>::has(shape))
+                if constexpr (hasAny<V>(shape))
                     attackers |= Attacks::PieceAttacks<shape[0]>(s, occ) &
                                  anyOf(shape) & army;
             }(),
             ...);
     }(std::make_index_sequence<Attacks::Shapes.size()>{});
 
-    if constexpr (Ruleset<V>::has(Attacks::PawnLike))
+    if constexpr (hasAny<V>(Attacks::PawnLike))
         attackers |= Attacks::PawnAttacks<M, N>(static_cast<Color>(!c), s) &
                      anyOf(Attacks::PawnLike) & army;
 
-    if constexpr (Ruleset<V>::has(Attacks::HorseLike))
+    if constexpr (hasAny<V>(Attacks::HorseLike))
         for (Bits<V> b = anyOf(Attacks::HorseLike) & army &
                          Attacks::KnightAttacks<M, N>(s);
              !b.empty();) {
@@ -138,7 +137,7 @@ Bits<V> Position<V>::isAttacked(const Square &s, const Color &c) const {
                 attackers |= Bits<V>::squareToBitboard(from);
         }
 
-    if constexpr (Ruleset<V>::has(Attacks::GrasshopperLike))
+    if constexpr (hasAny<V>(Attacks::GrasshopperLike))
         for (Bits<V> b = anyOf(Attacks::GrasshopperLike) & army; !b.empty();) {
             const Square from = b.popLeastSquare();
             if (Attacks::GrasshopperAttacks(from, occ).test(s))
@@ -155,10 +154,10 @@ Bits<V> Position<V>::isChecked(const Color &c) const
 {
     const Bits<V> royal = those(c, Ruleset<V>::Royal);
 
-    // Horde's White is a kingless pawn swarm, so its royal square is empty.
-    if constexpr (V == Variant::Horde)
-        if (royal.empty())
-            return {};
+    // A side holding no royal cannot be checked -- Horde's White is a kingless
+    // pawn swarm.
+    if (royal.empty())
+        return {};
 
     return isAttacked(royal.leastSquare(), static_cast<Color>(!c));
 }
@@ -207,100 +206,16 @@ void Position<V>::empty() {
 
 template <Variant V>
     requires(Ruleset<V>::Supported)
-void Position<V>::place(std::span<const Piece> back) {
-    for (Square f = 0; f < back.size(); ++f)
-        pieces[PieceIndex<V>(back[f])] |= Bits<V>::squareToBitboard(f);
-    pieces[PieceIndex<V>(Piece::Pawn)] |=
-        Bits<V>::rankMask(Bits<V>::innerCols());
-
-    for (const Bits<V> &b : pieces)
-        sides[Black] |= b;
-}
-
-// Reflects a board holding nothing but Black's men into both sides.
-template <Variant V>
-    requires(Ruleset<V>::Supported)
-void Position<V>::mirror() {
-    for (Bits<V> &b : pieces)
-        b |= b.rankMirror();
-    sides[White] = sides[Black].rankMirror();
-}
-
-template <Variant V>
-    requires(Ruleset<V>::Supported)
 void Position<V>::setStartPos() {
-    empty();
+    std::string fen(Ruleset<V>::StartFen);
 
-    using enum Piece;
-    constexpr std::array standard{Rook, Knight, Bishop, Queen,
-                                  King, Bishop, Knight, Rook};
+    // Shredder names the rooks by file, and on the standard rank the outermost
+    // pair is the corner pair, so KQkq spells HAha.
+    if constexpr (V == Variant::Chess)
+        if (castles.isFRC)
+            fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w HAha - 0 1";
 
-    if constexpr (V == Variant::Chess || V == Variant::Antichess) {
-        place(standard);
-        mirror();
-
-    } else if constexpr (V == Variant::Horde) {
-        place(standard);
-
-        // White is a pawn horde, not Black's reflection: the four ranks nearest
-        // White, plus b5, c5, f5, g5.
-        Bits<V> horde{};
-        for (Square r = Bits<V>::ranks() - 4; r < Bits<V>::ranks(); ++r)
-            horde |= Bits<V>::rankMask(r * Bits<V>::innerCols());
-        for (Square f : {1, 2, 5, 6})
-            horde |= Bits<V>::squareToBitboard(
-                (Bits<V>::ranks() - 5) * Bits<V>::innerCols() + f);
-
-        pieces[PieceIndex<V>(Pawn)] |= horde;
-        sides[White] = horde;
-
-    } else if constexpr (V == Variant::Chaturanga) {
-        constexpr std::array back{Rook, Knight, Alfil,  King,
-                                  Ferz, Alfil,  Knight, Rook};
-        place(back);
-        mirror();
-
-    } else if constexpr (V == Variant::Paradigm) {
-        constexpr std::array back{Rook, Knight, Dragon, Queen,
-                                  King, Dragon, Knight, Rook};
-        place(back);
-        mirror();
-
-    } else if constexpr (V == Variant::XXL) {
-        constexpr std::array back{Rook,       Knight, Bishop, Archbishop, Camel,
-                                  General,    Amazon, King,   General,    Camel,
-                                  Chancellor, Bishop, Knight, Rook};
-        place(back);
-        mirror();
-
-    } else if constexpr (V == Variant::Gothic) {
-        constexpr std::array back{Rook, Knight,     Bishop, Queen,  Chancellor,
-                                  King, Archbishop, Bishop, Knight, Rook};
-        place(back);
-        mirror();
-    }
-
-    if constexpr (Ruleset<V>::Castling) {
-        static_assert(Ruleset<V>::Royal >= 0, "castling needs a royal king");
-
-        std::array<Square, 2> kings, kingRooks, queenRooks;
-        for (const Color c : {Black, White}) {
-            const Bits<V> royal = those(c, Ruleset<V>::Royal);
-            const Square back = c == White ? Castles<V>::whiteBack : 0;
-
-            kings[c] =
-                royal.empty() ? Bits<V>::noSquare() : royal.leastSquare();
-            kingRooks[c] = royal.empty() ? Bits<V>::noSquare()
-                                         : back + Bits<V>::cols() - 1;
-            queenRooks[c] = royal.empty() ? Bits<V>::noSquare() : back;
-        }
-
-        castles.arrangeCastling(kings, kingRooks, queenRooks);
-    }
-
-    toMove = White;
-
-    beginZobrist();
+    readFen(fen);
 }
 
 template <Variant V>

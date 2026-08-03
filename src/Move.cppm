@@ -1,7 +1,7 @@
 export module Move;
 
 import std;
-export import Consts;
+export import Variants;
 import Bitboard;
 
 export namespace Tilted {

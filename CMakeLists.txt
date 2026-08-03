@@ -27,12 +27,14 @@ target_sources(tilted
   PUBLIC
     FILE_SET CXX_MODULES FILES
       src/Consts.cppm
+      src/Variants.cppm
       src/Util.cppm
       src/Zobrist.cppm
       src/Bitboard.cppm
       src/Attacks.cppm
       src/Move.cppm
       src/Position.cppm
+      src/Generator.cppm
 )
 
 # Build the stdlib as a module so `import std;` resolves (libc++'s std.cppm on clang).
