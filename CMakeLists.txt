@@ -32,6 +32,7 @@ target_sources(tilted
       src/Zobrist.cppm
       src/Bitboard.cppm
       src/Attacks.cppm
+      src/Property.cppm
       src/Move.cppm
       src/Position.cppm
       src/Generator.cppm
