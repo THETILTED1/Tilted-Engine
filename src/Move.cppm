@@ -46,7 +46,7 @@ template <Variant V> class Move {
     }
 
   public:
-    std::uint32_t data = 0;
+    std::uint32_t data;
 
     Move() = default;
     constexpr explicit Move(std::uint32_t bits) : data(bits) {}

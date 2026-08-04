@@ -7,8 +7,8 @@ export namespace Tilted {
 
 template <Variant V> class MoveList {
   public:
-    // Assumption
-    static constexpr std::size_t capacity = 4 * Bits<V>::noSquare();
+    static constexpr std::size_t capacity =
+        4 * Ruleset<V>::dims.ranks * Ruleset<V>::dims.cols;
 
     void push(const Move<V> &m) { moves[filled++] = m; }
     void clear() { filled = 0; }
